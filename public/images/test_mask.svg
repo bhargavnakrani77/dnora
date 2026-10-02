@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 90" width="384" height="90">
+  <defs>
+    <mask id="logoMask">
+      <rect width="384" height="90" fill="black" />
+      <!-- D Stem -->
+      <line x1="18" y1="8" x2="18" y2="82" stroke="white" stroke-width="26" stroke-linecap="square" />
+      <!-- D Curve -->
+      <path d="M 18 10 C 68 10 76 28 76 45 C 76 62 68 80 18 80" fill="none" stroke="white" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+      <!-- N -->
+      <path d="M 86 8 L 86 82" stroke="white" stroke-width="22" stroke-linecap="square" />
+      <path d="M 86 8 L 138 82" stroke="white" stroke-width="24" stroke-linecap="round" />
+      <path d="M 138 8 L 138 82" stroke="white" stroke-width="22" stroke-linecap="square" />
+      <!-- O -->
+      <ellipse cx="190" cy="45" rx="38" ry="36" fill="none" stroke="white" stroke-width="24" />
+      <!-- R -->
+      <line x1="243" y1="8" x2="243" y2="82" stroke="white" stroke-width="22" stroke-linecap="square" />
+      <path d="M 243 10 C 290 10 298 24 298 38 C 298 50 280 52 243 52" fill="none" stroke="white" stroke-width="22" />
+      <path d="M 265 48 C 275 60 286 72 302 82" fill="none" stroke="white" stroke-width="24" stroke-linecap="round" />
+      <!-- A -->
+      <line x1="344" y1="8" x2="306" y2="82" stroke="white" stroke-width="24" stroke-linecap="round" />
+      <line x1="344" y1="8" x2="376" y2="82" stroke="white" stroke-width="24" stroke-linecap="round" />
+      <line x1="315" y1="65" x2="365" y2="65" stroke="white" stroke-width="16" />
+    </mask>
+  </defs>
+  <!-- Background ghost -->
+  <image href="logo.png" width="384" height="90" opacity="0.08" />
+  <!-- Masked real logo -->
+  <g mask="url(#logoMask)">
+    <image href="logo.png" width="384" height="90" />
+  </g>
+</svg>

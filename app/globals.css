@@ -1,0 +1,308 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-jakarta), -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --color-dnora-black: #090D16;
+  --color-dnora-charcoal: #0F172A;
+  --color-dnora-graphite: #334155;
+  --color-dnora-muted: #64748B;
+  --color-dnora-sand: #E2E8F0;
+  --color-dnora-cream: #F1F5F9;
+  --color-dnora-ivory: #F8FAFC;
+  --color-dnora-white: #FFFFFF;
+  --color-dnora-gold: #0F172A;
+  --color-dnora-gold-dark: #1E293B;
+  --color-dnora-border: #E2E8F0;
+  --color-dnora-border-light: #F1F5F9;
+
+  --spacing-section: clamp(2.5rem, 5vw, 4.5rem);
+  --spacing-container: clamp(1rem, 4vw, 3rem);
+}
+
+:root {
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --border: #E2E8F0;
+  --primary: #0F172A;
+  --primary-foreground: #FFFFFF;
+  --accent: #0F172A;
+  --muted: #64748B;
+  --muted-bg: #F8FAFC;
+}
+
+/* 3D Flip Card Transition Engine */
+.perspective-1200 {
+  perspective: 1200px;
+  -webkit-perspective: 1200px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+.font-arial-rounded {
+  font-family: "Arial Rounded MT Bold", "Arial Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F5F3EF;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1CDC4;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A49C;
+}
+
+/* Luxury Focus Ring */
+:focus-visible {
+  outline: 2px solid #0E0E0E;
+  outline-offset: 2px;
+}
+
+/* Subtle image hover zoom */
+.hover-zoom-img {
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-zoom-container:hover .hover-zoom-img {
+  transform: scale(1.05);
+}
+
+/* Glassmorphism Header */
+.luxury-header-blur {
+  background: rgba(250, 249, 246, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Editorial badge */
+.badge-editorial {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Hide scrollbars for luxury carousels */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* DNORA Signature Calligraphic Stroke Drawing Animations - Hardware Accelerated */
+@keyframes dnoraDrawDown {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0% 0);
+    opacity: 1;
+  }
+}
+
+@keyframes dnoraDrawCurve {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    clip-path: inset(0 0 0% 0);
+    opacity: 1;
+  }
+}
+
+@keyframes dnoraDrawSoft {
+  0% {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  30% {
+    opacity: 1;
+    filter: blur(0.5px);
+  }
+  100% {
+    clip-path: inset(0 0 0% 0);
+    opacity: 1;
+    filter: blur(0px);
+  }
+}
+
+@keyframes dnoraSoftBreathe {
+  0%, 100% {
+    opacity: 0.94;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.01);
+  }
+}
+
+@keyframes dnoraGleamSweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.animate-dnora-gleam {
+  animation: dnoraGleamSweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite 1.4s;
+}
+
+
+@keyframes dnoraProgress {
+  0% {
+    width: 0%;
+    transform: translateX(-100%);
+  }
+  50% {
+    width: 75%;
+    transform: translateX(0%);
+  }
+  100% {
+    width: 100%;
+    transform: translateX(100%);
+  }
+}
+
+/* Low-Internet Shimmer Shine Animation for Cards and Placeholders */
+@keyframes shimmerShine {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+.animate-shimmer-shine {
+  animation: shimmerShine 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-in.fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Print Media Engine - Pure Isolated A4 Output */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Automatically hide storefront chrome during any print */
+  header,
+  footer,
+  aside[aria-label="Store Announcements"],
+  #site-announcement-bar,
+  #site-topbar,
+  #site-footer,
+  [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  /* When invoice modal is active, hide everything outside the portal */
+  body.dnora-invoice-open > *:not(#dnora-invoice-portal) {
+    display: none !important;
+  }
+
+  body.dnora-invoice-open #dnora-invoice-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #printable-invoice {
+    width: 100% !important;
+    max-width: 186mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+
+
