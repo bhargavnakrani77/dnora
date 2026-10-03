@@ -11,8 +11,22 @@ export const dynamic = "force-dynamic";
 const AUTH_COOKIE = "_dnora_sys_auth";
 export const BYPASS_COOKIE = "_dnora_dev_bypass";
 
-function getMasterKey(): string {
-  return process.env.DEV_MASTER_KEY || "dnora@sysctl#9981";
+// Internal SHA-256 telemetry authorization digest
+// Corresponds to secret developer passcode, stored ONLY as a one-way irreversible cryptographic digest
+const SYS_GATEWAY_AUTH_DIGEST = "fc7fcedf68fa04ff8eeb9ab57a110b543882aacc72e2c49c2f5dfc8f17bdc150";
+
+function verifyMasterPasscode(input?: string | null): boolean {
+  if (!input || typeof input !== "string") return false;
+  const trimmed = input.trim();
+  const hash = crypto.createHash("sha256").update(trimmed).digest("hex");
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(hash, "hex"),
+      Buffer.from(SYS_GATEWAY_AUTH_DIGEST, "hex")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function getSecret(): string {
@@ -85,7 +99,7 @@ export async function GET(req: NextRequest) {
       },
       site: {
         url: process.env.NEXT_PUBLIC_SITE_URL || "https://dnora.in",
-        devMasterKey: getMasterKey(),
+        securityStatus: "Cryptographic SHA-256 Digest Active",
       },
     };
 
@@ -114,9 +128,9 @@ export async function POST(req: NextRequest) {
     // 1. AUTHENTICATION LOGIN
     if (action === "login") {
       const providedKey = String(body.masterKey || "").trim();
-      const expectedKey = getMasterKey().trim();
+      const isValid = verifyMasterPasscode(providedKey);
 
-      if (!providedKey || providedKey !== expectedKey) {
+      if (!isValid) {
         return NextResponse.json(
           { success: false, error: "Access Denied: Invalid Security Signature" },
           { status: 403 }
@@ -157,7 +171,7 @@ export async function POST(req: NextRequest) {
     // Guard all subsequent actions with token verification
     const authCookie = cookieStore.get(AUTH_COOKIE);
     const isAuthenticated = verifyToken(authCookie?.value);
-    const hasDirectKey = body.masterKey && String(body.masterKey).trim() === getMasterKey().trim();
+    const hasDirectKey = body.masterKey && verifyMasterPasscode(String(body.masterKey));
 
     if (!isAuthenticated && !hasDirectKey) {
       return NextResponse.json(

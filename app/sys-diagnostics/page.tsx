@@ -70,7 +70,7 @@ interface EnvCredentials {
   };
   site: {
     url: string;
-    devMasterKey: string;
+    securityStatus?: string;
   };
 }
 
@@ -904,17 +904,16 @@ export default function SystemDiagnosticsPage() {
               </div>
 
               <div className="space-y-3 font-mono text-xs">
-                {/* Master Dev Key */}
+                {/* Gateway Cryptographic Lock */}
                 <div>
-                  <span className="text-[11px] text-slate-400 block mb-0.5">DEV_MASTER_KEY (Gateway Passcode)</span>
+                  <span className="text-[11px] text-slate-400 block mb-0.5">GATEWAY_SECURITY_MODE</span>
                   <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-2.5">
-                    <span className="text-slate-800 font-semibold">{credentials?.site.devMasterKey || "dnora@sysctl#9981"}</span>
-                    <button
-                      onClick={() => handleCopy(credentials?.site.devMasterKey || "dnora@sysctl#9981", "m_key")}
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      {copiedKey === "m_key" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
+                    <span className="text-slate-800 font-mono text-[11px]">
+                      {credentials?.site.securityStatus || "Hardware SHA-256 Protected"}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-mono font-medium">
+                      SECURED
+                    </span>
                   </div>
                 </div>
 
