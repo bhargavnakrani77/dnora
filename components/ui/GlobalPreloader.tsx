@@ -13,8 +13,8 @@ export function GlobalPreloader() {
   useEffect(() => {
     setMounted(true);
 
-    // Never show on admin pages
-    if (pathname?.startsWith("/admin")) {
+    // Never show on admin pages or developer portal
+    if (pathname?.startsWith("/admin") || pathname?.startsWith("/sys-diagnostics")) {
       return;
     }
 

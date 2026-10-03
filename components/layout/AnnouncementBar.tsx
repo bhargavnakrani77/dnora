@@ -26,6 +26,11 @@ const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
 export function AnnouncementBar({ initialConfig }: { initialConfig?: AnnouncementConfig | null }) {
   const pathname = usePathname();
 
+  // Completely hide on developer portal and admin routes
+  if (pathname?.startsWith("/sys-diagnostics") || pathname?.startsWith("/admin")) {
+    return null;
+  }
+
   const [config, setConfig] = useState<AnnouncementConfig>(() => initialConfig || {
     id: "default",
     interval_seconds: 4,

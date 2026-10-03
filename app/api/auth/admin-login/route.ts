@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSession } from "@/lib/auth/session";
+import { store } from "@/lib/data/store";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const password = body?.password || "";
 
-    const expectedPassword = process.env.ADMIN_PASSWORD || "admin";
+    const expectedPassword = await store.getAdminPassword();
 
     const pwdBuf = Buffer.from(String(password));
     const expBuf = Buffer.from(String(expectedPassword));

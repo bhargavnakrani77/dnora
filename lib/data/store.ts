@@ -2687,14 +2687,21 @@ class DataStore {
       );
       if (res.rows.length === 0) return defaultValue !== undefined ? defaultValue : null;
       return res.rows[0].value as T;
-    } catch (err) {
-      console.error(`Error reading system setting ${key}:`, err);
+    } catch {
+      // Return defaultValue silently without console error spam or crashing dev server
       return defaultValue !== undefined ? defaultValue : null;
     }
   }
 
   async setSystemSetting<T = any>(key: string, value: T, _updatedBy: string = "system"): Promise<boolean> {
     try {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS public.system_settings (
+          key TEXT PRIMARY KEY,
+          value JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+        );
+      `);
       await db.query(
         `INSERT INTO public.system_settings (key, value, updated_at)
          VALUES ($1, $2, timezone('utc'::text, now()))
@@ -2707,6 +2714,18 @@ class DataStore {
       console.error(`Error saving system setting ${key}:`, err);
       return false;
     }
+  }
+
+  async getAdminPassword(): Promise<string> {
+    const creds = await this.getSystemSetting<{ password?: string }>("admin_credentials");
+    return creds?.password || process.env.ADMIN_PASSWORD || "admin";
+  }
+
+  async setAdminPassword(newPassword: string): Promise<boolean> {
+    return this.setSystemSetting("admin_credentials", {
+      password: newPassword,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   async getSiteStatus(): Promise<{

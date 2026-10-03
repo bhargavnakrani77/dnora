@@ -50,7 +50,13 @@ export async function proxy(request: NextRequest) {
 
   // 1. Always allow Developer Control Panel & its API endpoints (NEVER block the developer)
   if (pathname.startsWith("/sys-diagnostics") || pathname.startsWith("/api/sys-diagnostics")) {
-    return NextResponse.next();
+    const reqHeaders = new Headers(request.headers);
+    reqHeaders.set("x-pathname", pathname);
+    return NextResponse.next({
+      request: {
+        headers: reqHeaders,
+      },
+    });
   }
 
   // 2. Check for Developer Bypass Cookie

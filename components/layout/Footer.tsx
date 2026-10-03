@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 export function Footer() {
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/admin")) return null;
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/sys-diagnostics")) return null;
 
   return (
     <footer aria-label="DNORA Maison Footer" className="w-full bg-[#0E0E0E] text-white border-t border-white/10 print:hidden">

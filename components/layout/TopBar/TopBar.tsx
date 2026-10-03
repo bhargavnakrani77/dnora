@@ -336,7 +336,7 @@ export function TopBar({ initialNavCategories }: TopBarProps = {}) {
     }
   };
 
-  if (pathname?.startsWith("/admin")) {
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/sys-diagnostics")) {
     return null;
   }
 

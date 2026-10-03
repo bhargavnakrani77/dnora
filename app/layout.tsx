@@ -13,7 +13,7 @@ import { store } from "@/lib/data/store";
 import { db } from "@/lib/db";
 import { AnnouncementConfig } from "@/types";
 import { LiveVisitorHeartbeat } from "@/components/LiveVisitorHeartbeat";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -121,6 +121,32 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Completely isolate /sys-diagnostics from storefront headers, bars, and scripts
+  let isSysDiagnostics = false;
+  try {
+    const headerList = await headers();
+    const pathname = headerList.get("x-pathname") || "";
+    if (pathname.startsWith("/sys-diagnostics")) {
+      isSysDiagnostics = true;
+    }
+  } catch {
+    // fallback
+  }
+
+  if (isSysDiagnostics) {
+    return (
+      <html lang="en" className="h-full bg-[#FAFAFA] text-zinc-900" suppressHydrationWarning>
+        <head>
+          <title>System Operations & Infrastructure Portal | DNORA</title>
+          <meta name="robots" content="noindex, nofollow" />
+        </head>
+        <body className="min-h-full bg-[#FAFAFA] text-zinc-900 font-sans antialiased" suppressHydrationWarning>
+          {children}
+        </body>
+      </html>
+    );
+  }
+
   // Check Site Status (Killswitch secondary safeguard)
   let hasDevBypass = false;
   try {
