@@ -1041,7 +1041,7 @@ class DataStore {
       let movedCount = 0;
       if (affectedProductIds.length > 0) {
         // 3. Ensure 'Uncategorized' category exists
-        let uncatRes = await db.query(
+        const uncatRes = await db.query(
           `SELECT id FROM public.product_categories WHERE slug = 'uncategorized' LIMIT 1`
         );
         let uncatId: string;
@@ -1230,7 +1230,7 @@ class DataStore {
         [productId]
       );
       if (remaining.rows.length === 0) {
-        let uncatRes = await db.query(`SELECT id FROM public.product_categories WHERE slug = 'uncategorized' LIMIT 1`);
+        const uncatRes = await db.query(`SELECT id FROM public.product_categories WHERE slug = 'uncategorized' LIMIT 1`);
         let uncatId: string;
         if (uncatRes.rows.length === 0) {
           const insertUncat = await db.query(
@@ -2676,6 +2676,131 @@ class DataStore {
       console.error(`Error saving storefront page ${config.page_key}:`, err);
       throw err;
     }
+  }
+
+  // SYSTEM SETTINGS & TELEMETRY
+  async getSystemSetting<T = any>(key: string, defaultValue?: T): Promise<T | null> {
+    try {
+      const res = await db.query(
+        `SELECT value FROM public.system_settings WHERE key = $1 LIMIT 1`,
+        [key]
+      );
+      if (res.rows.length === 0) return defaultValue !== undefined ? defaultValue : null;
+      return res.rows[0].value as T;
+    } catch (err) {
+      console.error(`Error reading system setting ${key}:`, err);
+      return defaultValue !== undefined ? defaultValue : null;
+    }
+  }
+
+  async setSystemSetting<T = any>(key: string, value: T, _updatedBy: string = "system"): Promise<boolean> {
+    try {
+      await db.query(
+        `INSERT INTO public.system_settings (key, value, updated_at)
+         VALUES ($1, $2, timezone('utc'::text, now()))
+         ON CONFLICT (key) DO UPDATE
+         SET value = EXCLUDED.value, updated_at = timezone('utc'::text, now())`,
+        [key, JSON.stringify(value)]
+      );
+      return true;
+    } catch (err) {
+      console.error(`Error saving system setting ${key}:`, err);
+      return false;
+    }
+  }
+
+  async getSiteStatus(): Promise<{
+    status: "online" | "terminated";
+    mode?: string;
+    message?: string;
+    updated_at?: string;
+    updated_by?: string;
+  }> {
+    try {
+      const defaultStatus = {
+        status: "online" as const,
+        mode: "503_error",
+        message: "503 Service Unavailable: Database cluster connection timeout.",
+      };
+      const setting = await this.getSystemSetting("site_status", defaultStatus);
+      return setting || defaultStatus;
+    } catch {
+      return {
+        status: "online",
+        mode: "503_error",
+        message: "503 Service Unavailable",
+      };
+    }
+  }
+
+  async setSiteStatus(
+    status: "online" | "terminated",
+    mode: string = "503_error",
+    message?: string,
+    updatedBy: string = "developer"
+  ): Promise<boolean> {
+    const payload = {
+      status,
+      mode,
+      message: message || (status === "terminated" 
+        ? "503 Service Unavailable: Database cluster connection timeout." 
+        : "Storefront operational and healthy."),
+      updated_by: updatedBy,
+      updated_at: new Date().toISOString(),
+    };
+    return this.setSystemSetting("site_status", payload, updatedBy);
+  }
+
+  async getSystemDiagnostics(): Promise<{
+    dbConnected: boolean;
+    dbLatencyMs: number;
+    totalProducts: number;
+    totalCategories: number;
+    totalOrders: number;
+    totalHeroBanners: number;
+    siteStatus: {
+      status: "online" | "terminated";
+      mode?: string;
+      message?: string;
+      updated_at?: string;
+    };
+  }> {
+    const start = Date.now();
+    let dbConnected = false;
+    let totalProducts = 0;
+    let totalCategories = 0;
+    let totalOrders = 0;
+    let totalHeroBanners = 0;
+
+    try {
+      const [, pCount, cCount, oCount, hCount] = await Promise.all([
+        db.query("SELECT 1"),
+        db.query("SELECT COUNT(*) FROM public.products"),
+        db.query("SELECT COUNT(*) FROM public.product_categories"),
+        db.query("SELECT COUNT(*) FROM public.orders"),
+        db.query("SELECT COUNT(*) FROM public.hero_banners"),
+      ]);
+      dbConnected = true;
+      totalProducts = Number(pCount.rows[0]?.count || 0);
+      totalCategories = Number(cCount.rows[0]?.count || 0);
+      totalOrders = Number(oCount.rows[0]?.count || 0);
+      totalHeroBanners = Number(hCount.rows[0]?.count || 0);
+    } catch (err) {
+      console.error("DB Diagnostics check failed:", err);
+    }
+
+    const dbLatencyMs = Date.now() - start;
+    const siteStatus = await this.getSiteStatus();
+
+    return {
+      dbConnected,
+      dbLatencyMs,
+      totalProducts,
+      totalCategories,
+      totalOrders,
+      totalHeroBanners,
+      siteStatus,
+    };
   }
 }
 

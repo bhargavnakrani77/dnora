@@ -338,4 +338,115 @@ CREATE POLICY "Public users can view active circular collections" ON public.circ
 CREATE POLICY "Admin full access circular_collections" ON public.circular_collections FOR ALL USING (public.is_admin());
 CREATE INDEX IF NOT EXISTS idx_circular_collections_sort ON public.circular_collections(sort_order ASC, created_at DESC);
 
+-- 16. SYSTEM SETTINGS & KILLSWITCH CONFIGURATION
+CREATE TABLE IF NOT EXISTS public.system_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read system_settings" ON public.system_settings FOR SELECT USING (true);
+CREATE POLICY "Admin full access system_settings" ON public.system_settings FOR ALL USING (public.is_admin());
+
+-- 17. ANNOUNCEMENT BAR CONFIGURATION
+CREATE TABLE IF NOT EXISTS public.announcements_config (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  is_enabled BOOLEAN NOT NULL DEFAULT true,
+  rotation_speed_ms INTEGER NOT NULL DEFAULT 4000,
+  background_color TEXT DEFAULT '#0E0E0E',
+  text_color TEXT DEFAULT '#FFFFFF',
+  font_family TEXT DEFAULT 'Inter',
+  font_size TEXT DEFAULT 'text-xs',
+  letter_spacing TEXT DEFAULT 'tracking-wider',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.announcements_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read announcements_config" ON public.announcements_config FOR SELECT USING (true);
+CREATE POLICY "Admin full access announcements_config" ON public.announcements_config FOR ALL USING (public.is_admin());
+
+-- 18. ANNOUNCEMENT BAR MESSAGES
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  message TEXT NOT NULL,
+  link_url TEXT,
+  link_text TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read announcements" ON public.announcements FOR SELECT USING (true);
+CREATE POLICY "Admin full access announcements" ON public.announcements FOR ALL USING (public.is_admin());
+
+-- 19. PROMO BANNER CONFIGURATION
+CREATE TABLE IF NOT EXISTS public.promo_banner_config (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  heading TEXT NOT NULL,
+  tagline TEXT,
+  description TEXT,
+  button_text TEXT NOT NULL DEFAULT 'Explore Collection',
+  button_link TEXT NOT NULL DEFAULT '/shop',
+  image_url TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  slides JSONB,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.promo_banner_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read promo_banner_config" ON public.promo_banner_config FOR SELECT USING (true);
+CREATE POLICY "Admin full access promo_banner_config" ON public.promo_banner_config FOR ALL USING (public.is_admin());
+
+-- 20. SHIPPING CONFIGURATION
+CREATE TABLE IF NOT EXISTS public.shipping_config (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  free_shipping_threshold DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  standard_shipping_rate DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  express_shipping_rate DECIMAL(10, 2) NOT NULL DEFAULT 0,
+  is_free_shipping_enabled BOOLEAN NOT NULL DEFAULT true,
+  shipping_badge_text TEXT DEFAULT 'Complimentary Pan-India Delivery',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.shipping_config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read shipping_config" ON public.shipping_config FOR SELECT USING (true);
+CREATE POLICY "Admin full access shipping_config" ON public.shipping_config FOR ALL USING (public.is_admin());
+
+-- 21. STOREFRONT PAGES
+CREATE TABLE IF NOT EXISTS public.storefront_pages (
+  page_key TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  badge_label TEXT,
+  subtitle TEXT,
+  description TEXT,
+  banner_image_url TEXT,
+  banner_headline TEXT,
+  banner_subheadline TEXT,
+  meta_title TEXT,
+  meta_description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  featured_product_ids JSONB DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.storefront_pages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read storefront_pages" ON public.storefront_pages FOR SELECT USING (true);
+CREATE POLICY "Admin full access storefront_pages" ON public.storefront_pages FOR ALL USING (public.is_admin());
+
+-- 22. TRENDING NOW ITEMS
+CREATE TABLE IF NOT EXISTS public.trending_now_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.trending_now_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public can read trending_now_items" ON public.trending_now_items FOR SELECT USING (true);
+CREATE POLICY "Admin full access trending_now_items" ON public.trending_now_items FOR ALL USING (public.is_admin());
+
+
 

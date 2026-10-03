@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -127,7 +127,7 @@ export default function AdminNewProductPage() {
   const marginPercent = unitProfit !== null && numPrice > 0 ? Math.round((unitProfit / numPrice) * 100) : null;
 
   // Auto-generate unique SKU
-  const generateSkuString = (prodName?: string, catId?: string) => {
+  const generateSkuString = useCallback((prodName?: string, catId?: string) => {
     const targetName = prodName !== undefined ? prodName : name;
     const targetCat = categories.find((c) => c.id === (catId !== undefined ? catId : categoryId));
     const catPart = targetCat?.name ? targetCat.name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() : "BAG";
@@ -135,7 +135,7 @@ export default function AdminNewProductPage() {
     const prefix = namePart.length >= 2 ? namePart : catPart;
     const rand = Math.floor(100 + Math.random() * 900);
     return `DNR-${prefix}-${rand}`;
-  };
+  }, [name, categories, categoryId]);
 
   const handleGenerateSku = () => {
     setSku(generateSkuString());

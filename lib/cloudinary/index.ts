@@ -161,4 +161,41 @@ export async function uploadMedia(
   });
 }
 
+/**
+ * Fast ping check to verify Cloudinary API connectivity and calculate latency
+ */
+export async function checkCloudinaryHealth(): Promise<{
+  connected: boolean;
+  cloudName: string;
+  latencyMs: number;
+  error?: string;
+}> {
+  const start = Date.now();
+  try {
+    const configured = configureCloudinary();
+    if (!configured) {
+      return {
+        connected: false,
+        cloudName: "unconfigured",
+        latencyMs: 0,
+        error: "Credentials missing",
+      };
+    }
+    const res = await cloudinary.api.ping();
+    return {
+      connected: res?.status === "ok",
+      cloudName: cloudinary.config().cloud_name || "unknown",
+      latencyMs: Date.now() - start,
+    };
+  } catch (err: any) {
+    return {
+      connected: false,
+      cloudName: cloudinary.config().cloud_name || "unknown",
+      latencyMs: Date.now() - start,
+      error: err?.message || "Ping failed",
+    };
+  }
+}
+
 export { cloudinary };
+

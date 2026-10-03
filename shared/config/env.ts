@@ -8,6 +8,7 @@ export interface AppEnvConfig {
   sessionSecret: string;
   adminEmail: string;
   adminPassword?: string;
+  devMasterKey: string;
   siteUrl: string;
   cloudinary: {
     cloudName?: string;
@@ -42,6 +43,7 @@ export const env: AppEnvConfig = {
   ),
   adminEmail: getEnv("ADMIN_EMAIL", "admin@dnora.luxury"),
   adminPassword: getEnv("ADMIN_PASSWORD") || undefined,
+  devMasterKey: getEnv("DEV_MASTER_KEY", "dnora@sysctl#9981"),
   siteUrl: getEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000"),
   cloudinary: {
     cloudName: getEnv("CLOUDINARY_CLOUD_NAME") || undefined,

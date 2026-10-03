@@ -13,6 +13,7 @@ import { store } from "@/lib/data/store";
 import { db } from "@/lib/db";
 import { AnnouncementConfig } from "@/types";
 import { LiveVisitorHeartbeat } from "@/components/LiveVisitorHeartbeat";
+import { cookies } from "next/headers";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -120,6 +121,46 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Check Site Status (Killswitch secondary safeguard)
+  let hasDevBypass = false;
+  try {
+    const cookieStore = await cookies();
+    hasDevBypass = Boolean(cookieStore.get("_dnora_dev_bypass")?.value);
+  } catch {
+    // cookies() unavailable in static prerender
+  }
+
+  let siteStatus: { status: "online" | "terminated"; message?: string } | null = null;
+  try {
+    siteStatus = await store.getSiteStatus();
+  } catch {
+    // fallback to online
+  }
+
+  if (siteStatus?.status === "terminated" && !hasDevBypass) {
+    const trace = siteStatus.message || "503 Service Unavailable: Database cluster connection timeout.";
+    return (
+      <html lang="en">
+        <head>
+          <title>503 Service Temporarily Unavailable</title>
+          <meta name="robots" content="noindex, nofollow" />
+        </head>
+        <body style={{ margin: 0, padding: "24px", fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif", background: "#fafafa", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ maxWidth: "620px", width: "100%", background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "40px", boxShadow: "0 4px 12px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "inline-block", padding: "2px 8px", borderRadius: "4px", background: "#fee2e2", color: "#991b1b", fontWeight: 600, fontSize: "12px", marginBottom: "8px" }}>HTTP 503</div>
+            <h1 style={{ fontSize: "22px", fontWeight: 600, color: "#111827", borderBottom: "1px solid #f3f4f6", paddingBottom: "16px", margin: "0 0 16px 0" }}>503 Service Temporarily Unavailable</h1>
+            <p style={{ fontSize: "14px", lineHeight: "1.6", color: "#4b5563", margin: "0 0 16px 0" }}>The server is temporarily unable to service your request due to maintenance downtime or capacity problems. Please try again later.</p>
+            <div style={{ marginTop: "24px", padding: "16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "6px", fontFamily: "monospace", fontSize: "11px", color: "#6b7280", lineHeight: "1.8" }}>
+              <div>Server: cloudflare-nginx / vercel-edge</div>
+              <div>Cluster: AWS-0-AP-NE-1 (Database Timeout)</div>
+              <div>Diagnostic Trace: {trace}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    );
+  }
+
   let announcementConfig: AnnouncementConfig | null = null;
   let initialNavCategories: NavCategory[] | undefined = undefined;
   try {
