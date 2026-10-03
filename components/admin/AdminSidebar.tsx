@@ -31,6 +31,7 @@ import {
   Globe,
   Flame,
   Clock,
+  Percent,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -115,6 +116,12 @@ const NAV_GROUPS: NavGroupItem[] = [
         href: "/admin/customers",
         icon: Users,
         badge: "CRM",
+      },
+      {
+        label: "Coupons & Discounts",
+        href: "/admin/coupons",
+        icon: Percent,
+        badge: "Promo",
       },
       {
         label: "Shipping Charges",

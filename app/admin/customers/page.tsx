@@ -10,7 +10,6 @@ import {
   Phone,
   Calendar,
   ShoppingBag,
-  ExternalLink,
   ChevronRight,
   ShieldCheck,
   MapPin,
@@ -18,6 +17,11 @@ import {
   AlertCircle,
   Loader2,
   UserCheck,
+  Ban,
+  ShieldOff,
+  ShieldX,
+  MessageCircle,
+  TrendingUp,
 } from "lucide-react";
 import { AdminCustomer } from "@/types";
 import { formatPrice } from "@/lib/utils";
@@ -26,9 +30,14 @@ export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "customer" | "admin" | "buyers">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "customer" | "admin" | "buyers" | "blocked">("all");
   const [selectedCustomer, setSelectedCustomer] = useState<AdminCustomer | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Block/unblock state
+  const [blockingId, setBlockingId] = useState<string | null>(null);
+  const [showBlockModal, setShowBlockModal] = useState<AdminCustomer | null>(null);
+  const [blockReason, setBlockReason] = useState("");
 
   const fetchCustomers = async () => {
     try {
@@ -59,15 +68,87 @@ export default function AdminCustomersPage() {
       (c.phone && c.phone.includes(searchQuery.trim()));
 
     if (!matchesSearch) return false;
-
     if (roleFilter === "customer") return c.role === "customer";
     if (roleFilter === "admin") return c.role === "admin";
     if (roleFilter === "buyers") return c.total_orders > 0;
+    if (roleFilter === "blocked") return c.is_blocked;
     return true;
   });
 
   const totalSpentLtv = customers.reduce((sum, c) => sum + (Number(c.total_spent) || 0), 0);
   const activeBuyersCount = customers.filter((c) => c.total_orders > 0).length;
+  const blockedCount = customers.filter((c) => c.is_blocked).length;
+
+  // Block a customer
+  const handleBlock = async (customer: AdminCustomer) => {
+    setBlockingId(customer.id);
+    try {
+      const res = await fetch(`/api/admin/customers/${customer.id}/block`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "block", reason: blockReason || null }),
+      });
+      if (res.ok) {
+        setCustomers((prev) =>
+          prev.map((c) => c.id === customer.id ? { ...c, is_blocked: true, blocked_reason: blockReason || null } : c)
+        );
+        if (selectedCustomer?.id === customer.id) {
+          setSelectedCustomer((prev) => prev ? { ...prev, is_blocked: true, blocked_reason: blockReason || null } : null);
+        }
+        setStatusMsg({ type: "success", text: `${customer.full_name || customer.email} has been blocked.` });
+        setShowBlockModal(null);
+        setBlockReason("");
+      } else {
+        const json = await res.json();
+        setStatusMsg({ type: "error", text: json.error || "Failed to block customer." });
+      }
+    } catch {
+      setStatusMsg({ type: "error", text: "Network error." });
+    } finally {
+      setBlockingId(null);
+    }
+  };
+
+  // Unblock a customer
+  const handleUnblock = async (customer: AdminCustomer) => {
+    setBlockingId(customer.id);
+    try {
+      const res = await fetch(`/api/admin/customers/${customer.id}/block`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "unblock" }),
+      });
+      if (res.ok) {
+        setCustomers((prev) =>
+          prev.map((c) => c.id === customer.id ? { ...c, is_blocked: false, blocked_reason: null, blocked_at: null } : c)
+        );
+        if (selectedCustomer?.id === customer.id) {
+          setSelectedCustomer((prev) => prev ? { ...prev, is_blocked: false, blocked_reason: null, blocked_at: null } : null);
+        }
+        setStatusMsg({ type: "success", text: `${customer.full_name || customer.email} has been unblocked.` });
+      } else {
+        const json = await res.json();
+        setStatusMsg({ type: "error", text: json.error || "Failed to unblock customer." });
+      }
+    } catch {
+      setStatusMsg({ type: "error", text: "Network error." });
+    } finally {
+      setBlockingId(null);
+    }
+  };
+
+  // WhatsApp message
+  const handleWhatsApp = (customer: AdminCustomer) => {
+    const phone = customer.phone?.replace(/\D/g, "");
+    if (!phone) {
+      setStatusMsg({ type: "error", text: "No phone number on file for this customer." });
+      return;
+    }
+    const message = encodeURIComponent(
+      `Hello ${customer.full_name || "Valued Customer"}, thank you for shopping at DNORA Lifestyle. How can we assist you today?`
+    );
+    window.open(`https://wa.me/${phone.startsWith("91") ? phone : "91" + phone}?text=${message}`, "_blank");
+  };
 
   return (
     <div className="space-y-8 w-full pb-16 animate-in fade-in duration-200">
@@ -151,18 +232,20 @@ export default function AdminCustomersPage() {
           <div className="text-[11px] text-neutral-400 mt-1">Cumulative order value</div>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-xs">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Avg Value / Buyer</div>
-          <div className="text-2xl font-bold text-neutral-900 mt-1 font-mono">
-            {activeBuyersCount > 0 ? formatPrice(totalSpentLtv / activeBuyersCount) : "₹0"}
+        <div className={`bg-white border rounded-2xl p-5 shadow-xs ${blockedCount > 0 ? "border-red-200" : "border-neutral-200"}`}>
+          <div className={`text-[10px] font-bold uppercase tracking-widest ${blockedCount > 0 ? "text-red-600" : "text-neutral-400"}`}>
+            Blocked Accounts
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">Across purchasing clients</div>
+          <div className="text-2xl font-bold text-neutral-900 mt-1">{blockedCount}</div>
+          <div className="text-[11px] text-neutral-400 mt-1 flex items-center gap-1">
+            <ShieldX className="w-3.5 h-3.5 text-red-500" />
+            <span>Access restricted</span>
+          </div>
         </div>
       </div>
 
       {/* Search & Tabs Filter */}
       <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -174,52 +257,27 @@ export default function AdminCustomersPage() {
           />
         </div>
 
-        {/* Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-          <button
-            type="button"
-            onClick={() => setRoleFilter("all")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 ${
-              roleFilter === "all"
-                ? "bg-neutral-900 text-white shadow-xs"
-                : "text-neutral-600 hover:bg-neutral-100"
-            }`}
-          >
-            All ({customers.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoleFilter("buyers")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 ${
-              roleFilter === "buyers"
-                ? "bg-neutral-900 text-white shadow-xs"
-                : "text-neutral-600 hover:bg-neutral-100"
-            }`}
-          >
-            Buyers ({activeBuyersCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoleFilter("customer")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 ${
-              roleFilter === "customer"
-                ? "bg-neutral-900 text-white shadow-xs"
-                : "text-neutral-600 hover:bg-neutral-100"
-            }`}
-          >
-            Clients Only
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoleFilter("admin")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 ${
-              roleFilter === "admin"
-                ? "bg-neutral-900 text-white shadow-xs"
-                : "text-neutral-600 hover:bg-neutral-100"
-            }`}
-          >
-            Admins
-          </button>
+          {([
+            { key: "all", label: `All (${customers.length})` },
+            { key: "buyers", label: `Buyers (${activeBuyersCount})` },
+            { key: "customer", label: "Clients" },
+            { key: "admin", label: "Admins" },
+            { key: "blocked", label: `Blocked (${blockedCount})` },
+          ] as const).map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setRoleFilter(key)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 ${
+                roleFilter === key
+                  ? key === "blocked" ? "bg-red-600 text-white shadow-xs" : "bg-neutral-900 text-white shadow-xs"
+                  : "text-neutral-600 hover:bg-neutral-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -252,7 +310,7 @@ export default function AdminCustomersPage() {
                   <th className="py-3.5 px-4 text-center">Orders</th>
                   <th className="py-3.5 px-4 text-right">Lifetime Spend</th>
                   <th className="py-3.5 px-4">Primary Destination</th>
-                  <th className="py-3.5 px-6 text-right">Action</th>
+                  <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 text-xs">
@@ -260,16 +318,21 @@ export default function AdminCustomersPage() {
                   const initial = cust.full_name ? cust.full_name.charAt(0) : cust.email.charAt(0);
 
                   return (
-                    <tr key={cust.id} className="hover:bg-neutral-50/70 transition-colors">
+                    <tr key={cust.id} className={`hover:bg-neutral-50/70 transition-colors ${cust.is_blocked ? "bg-red-50/30" : ""}`}>
                       {/* Customer Name & Avatar */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-neutral-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                            {initial.toUpperCase()}
+                          <div className={`w-9 h-9 rounded-full text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs ${cust.is_blocked ? "bg-red-500" : "bg-neutral-900"}`}>
+                            {cust.is_blocked ? <ShieldX className="w-4 h-4" /> : initial.toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-bold text-neutral-900">
+                            <div className="font-bold text-neutral-900 flex items-center gap-1.5">
                               {cust.full_name || "Maison Guest"}
+                              {cust.is_blocked && (
+                                <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                                  Blocked
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-neutral-400 font-mono">
                               {cust.email}
@@ -334,13 +397,57 @@ export default function AdminCustomersPage() {
 
                       {/* Action */}
                       <td className="py-4 px-6 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCustomer(cust)}
-                          className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-900 hover:text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition cursor-pointer"
-                        >
-                          Details
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* WhatsApp */}
+                          {cust.phone && (
+                            <button
+                              type="button"
+                              onClick={() => handleWhatsApp(cust)}
+                              title="Send WhatsApp message"
+                              className="p-1.5 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition cursor-pointer"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {/* Block/Unblock */}
+                          {cust.role !== "admin" && (
+                            <button
+                              type="button"
+                              disabled={blockingId === cust.id}
+                              onClick={() => {
+                                if (cust.is_blocked) {
+                                  handleUnblock(cust);
+                                } else {
+                                  setShowBlockModal(cust);
+                                }
+                              }}
+                              title={cust.is_blocked ? "Unblock customer" : "Block customer"}
+                              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                cust.is_blocked
+                                  ? "text-emerald-600 hover:bg-emerald-50"
+                                  : "text-neutral-400 hover:text-red-600 hover:bg-red-50"
+                              }`}
+                            >
+                              {blockingId === cust.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : cust.is_blocked ? (
+                                <ShieldCheck className="w-4 h-4" />
+                              ) : (
+                                <Ban className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+
+                          {/* Details */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCustomer(cust)}
+                            className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-900 hover:text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition cursor-pointer"
+                          >
+                            Details
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -351,20 +458,80 @@ export default function AdminCustomersPage() {
         )}
       </div>
 
+      {/* BLOCK CONFIRM MODAL */}
+      {showBlockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-neutral-200 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <ShieldOff className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900">Block Customer</h3>
+                <p className="text-xs text-neutral-500">
+                  {showBlockModal.full_name || showBlockModal.email}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-600">
+              This customer will <strong>not be able to log in</strong> until unblocked. Their existing orders will not be affected.
+            </p>
+
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 block mb-1.5">
+                Block Reason (optional)
+              </label>
+              <input
+                type="text"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="e.g. Suspicious activity, chargeback abuse..."
+                className="w-full px-3.5 py-2.5 border border-neutral-200 rounded-xl text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowBlockModal(null); setBlockReason(""); }}
+                className="flex-1 py-2.5 border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={blockingId === showBlockModal.id}
+                onClick={() => handleBlock(showBlockModal)}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {blockingId === showBlockModal.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                Block Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CUSTOMER DETAILS MODAL / DRAWER */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white border border-neutral-200 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl space-y-6">
             <div className="flex items-center justify-between border-b border-neutral-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-neutral-900 text-white flex items-center justify-center font-bold text-base shadow-sm">
-                  {selectedCustomer.full_name
-                    ? selectedCustomer.full_name.charAt(0).toUpperCase()
-                    : selectedCustomer.email.charAt(0).toUpperCase()}
+                <div className={`w-12 h-12 rounded-2xl text-white flex items-center justify-center font-bold text-base shadow-sm ${selectedCustomer.is_blocked ? "bg-red-500" : "bg-neutral-900"}`}>
+                  {selectedCustomer.is_blocked
+                    ? <ShieldX className="w-6 h-6" />
+                    : (selectedCustomer.full_name ? selectedCustomer.full_name.charAt(0).toUpperCase() : selectedCustomer.email.charAt(0).toUpperCase())}
                 </div>
                 <div>
-                  <h3 className="text-base font-serif font-bold text-neutral-900">
+                  <h3 className="text-base font-serif font-bold text-neutral-900 flex items-center gap-2">
                     {selectedCustomer.full_name || "Maison Client"}
+                    {selectedCustomer.is_blocked && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                        Blocked
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-neutral-500 font-mono">{selectedCustomer.email}</p>
                 </div>
@@ -378,6 +545,22 @@ export default function AdminCustomersPage() {
                 ✕
               </button>
             </div>
+
+            {/* Block reason notice */}
+            {selectedCustomer.is_blocked && selectedCustomer.blocked_reason && (
+              <div className="flex items-start gap-2 p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800">
+                <ShieldOff className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Block Reason</p>
+                  <p className="mt-0.5">{selectedCustomer.blocked_reason}</p>
+                  {selectedCustomer.blocked_at && (
+                    <p className="text-red-600 mt-1 font-mono text-[10px]">
+                      Blocked on: {new Date(selectedCustomer.blocked_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Quick Metrics */}
             <div className="grid grid-cols-3 gap-3">
@@ -400,6 +583,34 @@ export default function AdminCustomersPage() {
                 </div>
               </div>
             </div>
+
+            {/* LTV Progress Bar */}
+            {selectedCustomer.total_spent > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                  <span className="flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                    Lifetime Value Progress
+                  </span>
+                  <span>{formatPrice(selectedCustomer.total_spent)}</span>
+                </div>
+                <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min((selectedCustomer.total_spent / 100000) * 100, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-neutral-400">
+                  <span>₹0</span>
+                  <span className="text-neutral-600 font-medium">
+                    {selectedCustomer.total_spent >= 100000 ? "🏆 VIP Client" :
+                     selectedCustomer.total_spent >= 50000 ? "💎 Gold Tier" :
+                     selectedCustomer.total_spent >= 10000 ? "⭐ Silver Tier" : "Bronze Tier"}
+                  </span>
+                  <span>₹1,00,000</span>
+                </div>
+              </div>
+            )}
 
             {/* Contact Details */}
             <div className="space-y-3">
@@ -457,7 +668,49 @@ export default function AdminCustomersPage() {
               )}
             </div>
 
-            <div className="pt-4 border-t border-neutral-100 flex justify-end">
+            {/* Action Buttons */}
+            <div className="pt-4 border-t border-neutral-100 flex flex-wrap gap-3 justify-end">
+              {/* WhatsApp */}
+              {selectedCustomer.phone && (
+                <button
+                  type="button"
+                  onClick={() => handleWhatsApp(selectedCustomer)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp
+                </button>
+              )}
+
+              {/* Block/Unblock */}
+              {selectedCustomer.role !== "admin" && (
+                <button
+                  type="button"
+                  disabled={blockingId === selectedCustomer.id}
+                  onClick={() => {
+                    if (selectedCustomer.is_blocked) {
+                      handleUnblock(selectedCustomer);
+                    } else {
+                      setShowBlockModal(selectedCustomer);
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer ${
+                    selectedCustomer.is_blocked
+                      ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
+                      : "bg-red-100 hover:bg-red-200 text-red-800"
+                  }`}
+                >
+                  {blockingId === selectedCustomer.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : selectedCustomer.is_blocked ? (
+                    <ShieldCheck className="w-4 h-4" />
+                  ) : (
+                    <Ban className="w-4 h-4" />
+                  )}
+                  {selectedCustomer.is_blocked ? "Unblock" : "Block"}
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setSelectedCustomer(null)}

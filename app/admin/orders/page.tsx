@@ -69,6 +69,12 @@ export default function AdminOrdersPage() {
   const [notes, setNotes] = useState("");
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
+  // Bulk select state
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState("confirmed");
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -115,6 +121,41 @@ export default function AdminOrdersPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleBulkUpdate = async () => {
+    if (selectedOrderIds.size === 0) return;
+    setBulkUpdating(true);
+    setBulkSuccess(null);
+    try {
+      const res = await fetch("/api/admin/orders/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_ids: Array.from(selectedOrderIds), status: bulkStatus }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBulkSuccess(`${data.updated} orders updated to "${bulkStatus}".`);
+        setSelectedOrderIds(new Set());
+        fetchOrders();
+        setTimeout(() => setBulkSuccess(null), 3000);
+      }
+    } catch {
+      console.error("Bulk update failed");
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  const handleWhatsAppOrder = (order: Order) => {
+    const phone = order.customer_phone?.replace(/\D/g, "");
+    if (!phone) return;
+    const msg = encodeURIComponent(
+      `Hello ${order.customer_name}, your DNORA Lifestyle order ${order.order_number} is now ${order.status.toUpperCase()}. ` +
+      (order.tracking_number ? `Tracking: ${order.tracking_number} (${order.carrier || "Courier"})` : "We will share the tracking details shortly.") +
+      ` Thank you for shopping with us! 🛍️`
+    );
+    window.open(`https://wa.me/${phone.startsWith("91") ? phone : "91" + phone}?text=${msg}`, "_blank");
   };
 
   useEffect(() => {
@@ -361,6 +402,48 @@ export default function AdminOrdersPage() {
         </form>
       </div>
 
+      {/* Bulk Success Toast */}
+      {bulkSuccess && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium animate-in fade-in duration-200">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          {bulkSuccess}
+        </div>
+      )}
+
+      {/* Bulk Toolbar — appears when orders are selected */}
+      {selectedOrderIds.size > 0 && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 bg-neutral-900 text-white rounded-xl animate-in fade-in duration-200">
+          <span className="text-xs font-bold">{selectedOrderIds.size} order{selectedOrderIds.size !== 1 ? "s" : ""} selected</span>
+          <div className="flex items-center gap-2 flex-1">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value)}
+              className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-lg text-xs text-white focus:outline-none focus:ring-2 focus:ring-white/30 cursor-pointer"
+            >
+              {["pending","processing","confirmed","shipped","delivered","cancelled"].map((s) => (
+                <option key={s} value={s} className="text-neutral-900 bg-white">{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={bulkUpdating}
+              onClick={handleBulkUpdate}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white text-neutral-900 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-neutral-100 transition cursor-pointer disabled:opacity-60"
+            >
+              {bulkUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Apply to All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedOrderIds(new Set())}
+              className="ml-auto px-3 py-1.5 text-white/60 hover:text-white text-xs cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Orders Table */}
       <div className="bg-white rounded-xl border border-neutral-200/80 shadow-2xs overflow-hidden">
         {loading ? (
@@ -381,6 +464,20 @@ export default function AdminOrdersPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#FAF9F6] border-b border-neutral-200 text-neutral-600 font-semibold uppercase tracking-wider text-[10px]">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.size === orders.length && orders.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedOrderIds(new Set(orders.map((o) => o.id)));
+                        } else {
+                          setSelectedOrderIds(new Set());
+                        }
+                      }}
+                      className="w-3.5 h-3.5 rounded cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3">Order Number</th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Customer</th>
@@ -393,8 +490,23 @@ export default function AdminOrdersPage() {
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {orders.map((order) => {
+                  const isChecked = selectedOrderIds.has(order.id);
                   return (
-                    <tr key={order.id} className="hover:bg-neutral-50/70 transition-colors">
+                    <tr key={order.id} className={`hover:bg-neutral-50/70 transition-colors ${isChecked ? "bg-blue-50/40" : ""}`}>
+                      {/* Checkbox */}
+                      <td className="px-4 py-3.5">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const next = new Set(selectedOrderIds);
+                            if (e.target.checked) next.add(order.id);
+                            else next.delete(order.id);
+                            setSelectedOrderIds(next);
+                          }}
+                          className="w-3.5 h-3.5 rounded cursor-pointer"
+                        />
+                      </td>
                       {/* Order Number */}
                       <td className="px-4 py-3.5 font-mono font-bold text-neutral-900">
                         {order.order_number}
@@ -482,6 +594,17 @@ export default function AdminOrdersPage() {
 
                       <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* WhatsApp */}
+                          {order.customer_phone && (
+                            <button
+                              type="button"
+                              onClick={() => handleWhatsAppOrder(order)}
+                              title="Send WhatsApp tracking update"
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-medium transition-colors cursor-pointer shadow-2xs"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setViewingInvoiceOrder(order)}

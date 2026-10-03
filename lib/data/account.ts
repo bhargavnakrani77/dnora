@@ -77,6 +77,29 @@ export async function ensureAccountTables(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
       CREATE INDEX IF NOT EXISTS idx_user_addresses_user_id ON public.user_addresses(user_id);
+
+      -- Block/Unblock feature columns (migration-safe)
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS blocked_reason TEXT;
+      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+
+      -- Coupons table for Discount/Coupon Manager
+      CREATE TABLE IF NOT EXISTS public.coupons (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code TEXT NOT NULL UNIQUE,
+        description TEXT,
+        discount_type TEXT NOT NULL DEFAULT 'percentage',
+        discount_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+        minimum_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        maximum_discount_amount DECIMAL(10,2),
+        usage_limit INTEGER,
+        used_count INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        valid_from TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+        valid_until TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+      );
     `);
     accountTablesEnsured = true;
   } catch {

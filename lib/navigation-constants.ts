@@ -16,8 +16,9 @@ export const DEFAULT_STOREFRONT_NAVIGATION: SidebarMenuItem[] = [
     is_active: true,
     submenus: [
       { id: "sf-sub-all", label: "Explore All Handbags", href: "/shop" },
-      { id: "sf-sub-bestsellers", label: "Best Sellers", href: "/#best-sellers", badge: "Hot" },
-      { id: "sf-sub-new", label: "New Arrivals", href: "/#new-arrivals", badge: "New" },
+      { id: "sf-sub-bestsellers", label: "Best Sellers", href: "/bestseller", badge: "Hot" },
+      { id: "sf-sub-new", label: "New Arrivals", href: "/new-in", badge: "New" },
+      { id: "sf-sub-trending", label: "Trending Now", href: "/trending-now", badge: "Hot" },
       { id: "sf-sub-categories", label: "Featured Categories", href: "/#categories" },
     ],
   },

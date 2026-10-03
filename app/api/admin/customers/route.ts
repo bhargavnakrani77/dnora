@@ -13,6 +13,9 @@ interface CustomerDbRow {
   phone: string | null;
   avatar_url: string | null;
   role: "admin" | "customer";
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  blocked_at: string | null;
   created_at: string;
   updated_at: string | null;
   total_orders: number;
@@ -37,6 +40,9 @@ export async function GET() {
         u.phone,
         u.avatar_url,
         u.role,
+        COALESCE(u.is_blocked, false) AS is_blocked,
+        u.blocked_reason,
+        u.blocked_at,
         u.created_at,
         u.updated_at,
         COUNT(DISTINCT o.id)::int AS total_orders,
@@ -93,6 +99,9 @@ export async function GET() {
       phone: r.phone,
       avatar_url: r.avatar_url,
       role: r.role,
+      is_blocked: r.is_blocked || false,
+      blocked_reason: r.blocked_reason,
+      blocked_at: r.blocked_at,
       created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
       updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
       total_orders: Number(r.total_orders) || 0,

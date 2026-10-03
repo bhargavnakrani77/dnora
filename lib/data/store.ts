@@ -1885,7 +1885,7 @@ class DataStore {
       best_sellers: {
         enabled: true,
         title: "BEST SELLERS",
-        view_all_link: "/shop?best_seller=true",
+        view_all_link: "/bestseller",
         view_all_text: "VIEW ALL",
         heading_color: "#0E0E0E",
         heading_font_size: "32px",
@@ -1896,7 +1896,7 @@ class DataStore {
       new_in: {
         enabled: true,
         title: "NEW IN",
-        view_all_link: "/shop?new_arrival=true",
+        view_all_link: "/new-in",
         view_all_text: "VIEW ALL",
         heading_color: "#0E0E0E",
         heading_font_size: "32px",
@@ -1942,7 +1942,7 @@ class DataStore {
           subtitle: "The most coveted architectural silhouettes from our Florentine atelier.",
           type: "best_sellers",
           display_style: "carousel",
-          view_all_link: "/shop?best_seller=true",
+          view_all_link: "/bestseller",
           view_all_text: "VIEW ALL",
           limit: 10,
           is_active: true,
@@ -1954,7 +1954,7 @@ class DataStore {
           subtitle: "Fresh artisan silhouettes sculpted for modern elegance.",
           type: "new_in",
           display_style: "carousel",
-          view_all_link: "/shop?new_arrival=true",
+          view_all_link: "/new-in",
           view_all_text: "VIEW ALL",
           limit: 10,
           is_active: true,
@@ -1980,6 +1980,28 @@ class DataStore {
       const parsed: HomepageConfig = typeof raw === "string" ? JSON.parse(raw) : (raw || fallback);
       if (!parsed.sections || !Array.isArray(parsed.sections) || parsed.sections.length === 0) {
         parsed.sections = fallback.sections;
+      }
+      // Normalize legacy view_all_links to dedicated routes
+      if (parsed.best_sellers && (!parsed.best_sellers.view_all_link || parsed.best_sellers.view_all_link.includes("best_seller=true"))) {
+        parsed.best_sellers.view_all_link = "/bestseller";
+      }
+      if (parsed.new_in && (!parsed.new_in.view_all_link || parsed.new_in.view_all_link.includes("new_arrival=true"))) {
+        parsed.new_in.view_all_link = "/new-in";
+      }
+      if (parsed.sections) {
+        parsed.sections = parsed.sections.map((sec) => {
+          if (sec.type === "best_sellers" && (!sec.view_all_link || sec.view_all_link.includes("best_seller=true") || sec.view_all_link === "/shop")) {
+            return { ...sec, view_all_link: "/bestseller" };
+          }
+          if (sec.type === "new_in" && (!sec.view_all_link || sec.view_all_link.includes("new_arrival=true") || sec.view_all_link === "/shop?sort=newest" || sec.view_all_link === "/shop")) {
+            return { ...sec, view_all_link: "/new-in" };
+          }
+          const secType = sec.type as string;
+          if ((secType === "trending" || secType === "trending_now") && (!sec.view_all_link || sec.view_all_link.includes("shop"))) {
+            return { ...sec, view_all_link: "/trending-now" };
+          }
+          return sec;
+        });
       }
       return parsed;
     } catch {

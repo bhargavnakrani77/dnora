@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { store } from "@/lib/data/store";
 import { formatPrice } from "@/lib/utils";
 import { ChevronRight, ArrowLeft, Sparkles, ShoppingBag } from "lucide-react";
@@ -19,11 +20,29 @@ interface ShopPageProps {
     sort?: string;
     category?: string;
     collection?: string;
+    new_arrival?: string;
+    new_in?: string;
+    best_seller?: string;
+    bestseller?: string;
+    trending?: string;
+    trending_now?: string;
   }>;
 }
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
-  const { sort, category } = await searchParams;
+  const resolvedParams = searchParams ? await searchParams : {};
+  const { sort, category, new_arrival, new_in, best_seller, bestseller, trending, trending_now } = (resolvedParams || {}) as Record<string, string | undefined>;
+
+  // Dedicated page redirects: open dedicated page when query flags are present
+  if (new_arrival === "true" || new_in === "true" || new_arrival === "1") {
+    redirect("/new-in");
+  }
+  if (best_seller === "true" || bestseller === "true" || best_seller === "1") {
+    redirect("/bestseller");
+  }
+  if (trending === "true" || trending_now === "true" || trending === "1") {
+    redirect("/trending-now");
+  }
 
   const allCategories = await store.getCategories();
   const products = await store.getProducts({

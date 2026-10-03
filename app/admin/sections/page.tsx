@@ -512,7 +512,10 @@ export default function AdminHomepageSectionsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
-                    onClick={() => setFormType("best_sellers")}
+                    onClick={() => {
+                      setFormType("best_sellers");
+                      setFormViewAllLink("/bestseller");
+                    }}
                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                       formType === "best_sellers"
                         ? "border-black bg-neutral-900 text-white shadow-xs"
@@ -526,7 +529,10 @@ export default function AdminHomepageSectionsPage() {
 
                   <button
                     type="button"
-                    onClick={() => setFormType("new_in")}
+                    onClick={() => {
+                      setFormType("new_in");
+                      setFormViewAllLink("/new-in");
+                    }}
                     className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                       formType === "new_in"
                         ? "border-black bg-neutral-900 text-white shadow-xs"
@@ -692,6 +698,27 @@ export default function AdminHomepageSectionsPage() {
                     placeholder="/shop"
                     className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-neutral-300"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {[
+                      { label: "New In", link: "/new-in" },
+                      { label: "Best Sellers", link: "/bestseller" },
+                      { label: "Trending Now", link: "/trending-now" },
+                      { label: "Full Shop", link: "/shop" },
+                    ].map((p) => (
+                      <button
+                        key={p.link}
+                        type="button"
+                        onClick={() => setFormViewAllLink(p.link)}
+                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                          formViewAllLink === p.link
+                            ? "bg-black text-white border-black font-semibold"
+                            : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

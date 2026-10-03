@@ -78,17 +78,33 @@ export function DynamicHomeSection({ section, products }: DynamicHomeSectionProp
         )}
 
         {/* View All Button */}
-        {section.view_all_link && (
-          <div className="mt-8 sm:mt-10 text-center">
-            <Link
-              href={section.view_all_link}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white hover:bg-neutral-800 text-[11px] font-semibold tracking-[0.2em] uppercase rounded-md shadow-xs transition-all active:scale-95 group"
-            >
-              <span>{section.view_all_text || "VIEW ALL"}</span>
-              <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>
-          </div>
-        )}
+        {(() => {
+          // Resolve View All link to dedicated pages for New In, Best Sellers, and Trending Now
+          const resolveViewAllLink = (sec: HomepageSection): string => {
+            if (sec.type === "new_in") return "/new-in";
+            if (sec.type === "best_sellers") return "/bestseller";
+            const typeStr = sec.type as string;
+            if (typeStr === "trending" || typeStr === "trending_now") return "/trending-now";
+            if (sec.view_all_link?.includes("new_arrival=true") || sec.view_all_link?.includes("new_in=true")) return "/new-in";
+            if (sec.view_all_link?.includes("best_seller=true") || sec.view_all_link?.includes("bestseller=true")) return "/bestseller";
+            if (sec.view_all_link?.includes("trending=true") || sec.view_all_link?.includes("trending-now")) return "/trending-now";
+            return sec.view_all_link || "/shop";
+          };
+
+          const targetLink = resolveViewAllLink(section);
+
+          return targetLink ? (
+            <div className="mt-8 sm:mt-10 text-center">
+              <Link
+                href={targetLink}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-black text-white hover:bg-neutral-800 text-[11px] font-semibold tracking-[0.2em] uppercase rounded-md shadow-xs transition-all active:scale-95 group"
+              >
+                <span>{section.view_all_text || "VIEW ALL"}</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </div>
+          ) : null;
+        })()}
       </div>
     </section>
   );

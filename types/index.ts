@@ -253,12 +253,34 @@ export interface AdminCustomer {
   phone?: string | null;
   avatar_url?: string | null;
   role: UserRole;
+  is_blocked: boolean;
+  blocked_reason?: string | null;
+  blocked_at?: string | null;
   created_at: string;
   updated_at?: string;
   total_orders: number;
   total_spent: number;
   primary_address?: CustomerAddress | null;
   addresses?: CustomerAddress[];
+}
+
+export type CouponDiscountType = "percentage" | "fixed";
+
+export interface Coupon {
+  id: string;
+  code: string;
+  description?: string | null;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  minimum_order_amount: number;
+  maximum_discount_amount?: number | null;
+  usage_limit?: number | null;
+  used_count: number;
+  is_active: boolean;
+  valid_from: string;
+  valid_until?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SidebarSubmenuItem {

@@ -19,7 +19,7 @@ const DEFAULT_COLLECTIONS: CircularCollectionItem[] = [
   {
     id: "col-new",
     label: "New Arrivals",
-    href: "/shop?sort=newest",
+    href: "/new-in",
     image: "https://www.linoperros.com/cdn/shop/files/Circular_512_X_512_Icon_Webp_1.jpg?v=1786340044&width=300",
     badge: "New",
     alt: "New Arrivals Collection",
@@ -27,7 +27,7 @@ const DEFAULT_COLLECTIONS: CircularCollectionItem[] = [
   {
     id: "col-bestsellers",
     label: "Best Sellers",
-    href: "/#bestsellers",
+    href: "/bestseller",
     image: "https://www.linoperros.com/cdn/shop/files/bestseller.png?v=1788779073&width=300",
     badge: "Hot",
     alt: "Best Sellers Handbags",

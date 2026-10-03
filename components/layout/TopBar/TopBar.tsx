@@ -31,13 +31,13 @@ const LUXURY_NAV_CATEGORIES: NavCategory[] = [
   {
     id: "nav-new",
     label: "NEW IN",
-    href: "/shop?sort=newest",
+    href: "/new-in",
     badge: "New",
     subcategories: [
       {
         title: "LATEST ARRIVALS",
         items: [
-          { label: "View All New Arrivals", href: "/shop?sort=newest" },
+          { label: "View All New Arrivals", href: "/new-in" },
           { label: "The Florence Autumn Drop", href: "/shop?collection=florence", badge: "Exclusive" },
           { label: "Architectural Totes", href: "/category/tote-bags" },
           { label: "Saddle & Crossbody Silhouettes", href: "/category/crossbody-bags" },
@@ -47,7 +47,8 @@ const LUXURY_NAV_CATEGORIES: NavCategory[] = [
       {
         title: "CURATED EDITS",
         items: [
-          { label: "Bestselling Icons", href: "/#bestsellers" },
+          { label: "Bestselling Icons", href: "/bestseller" },
+          { label: "Trending Now Silhouettes", href: "/trending-now" },
           { label: "Monochrome Noir Collection", href: "/shop?color=black" },
           { label: "Tuscan Tan & Caramel", href: "/shop?color=caramel" },
           { label: "Gift Selection", href: "/shop?collection=gifts" },

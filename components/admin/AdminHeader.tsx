@@ -12,6 +12,8 @@ import {
   ShieldCheck,
   ShoppingBag,
   AlertTriangle,
+  UserPlus,
+  Tag,
 } from "lucide-react";
 
 interface AdminHeaderProps {
@@ -25,6 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/items": "Products & Catalog",
   "/admin/categories": "Categories & Collections",
   "/admin/customers": "Customers",
+  "/admin/coupons": "Discount & Coupons",
   "/admin/heroes": "Hero Banners",
   "/admin/announcements": "Announcement Bar",
   "/admin/trending-now": "Trending Now",
@@ -46,7 +49,7 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<{
     id: string;
-    type: "order" | "low_stock";
+    type: "order" | "low_stock" | "new_customer" | "coupon_expiry";
     title: string;
     description: string;
     timeAgo: string;
@@ -147,8 +150,12 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
                       <p className="font-semibold text-neutral-900 flex items-center gap-1.5">
                         {n.type === "order" ? (
                           <ShoppingBag className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        ) : (
+                        ) : n.type === "low_stock" ? (
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        ) : n.type === "new_customer" ? (
+                          <UserPlus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Tag className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                         )}
                         <span className="truncate">{n.title}</span>
                       </p>

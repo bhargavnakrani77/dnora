@@ -68,6 +68,42 @@ const nextConfig: NextConfig = {
         destination: "/admin",
         permanent: true,
       },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "new_arrival" }],
+        destination: "/new-in",
+        permanent: false,
+      },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "new_in" }],
+        destination: "/new-in",
+        permanent: false,
+      },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "best_seller" }],
+        destination: "/bestseller",
+        permanent: false,
+      },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "bestseller" }],
+        destination: "/bestseller",
+        permanent: false,
+      },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "trending" }],
+        destination: "/trending-now",
+        permanent: false,
+      },
+      {
+        source: "/shop",
+        has: [{ type: "query", key: "trending_now" }],
+        destination: "/trending-now",
+        permanent: false,
+      },
     ];
   },
 };
