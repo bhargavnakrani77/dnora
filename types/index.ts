@@ -55,7 +55,7 @@ export interface ProductFlag {
 export interface ProductColorVariant {
   id?: string;
   name?: string; // Optional: e.g., "Noir Black", "Caramel Tan", or empty if only color dot
-  color_hex: string; // e.g., "#1A1A1A", "#8B5A2B"
+  color_hex?: string; // e.g., "#1A1A1A", "#8B5A2B", defaults to #111111
   hex?: string; // convenient alias
   images: ProductImage[];
 }

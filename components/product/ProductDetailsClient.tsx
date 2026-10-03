@@ -53,48 +53,44 @@ export function ProductDetailsClient({ product, relatedProducts }: ProductDetail
       ? product.color_variants[selectedColorIndex]
       : null;
 
-  // Combine variant images and all base product images (main + hover + extra) so no images are ever lost
+  // Dedicated gallery for selected color variant (reference: Lino Perros luxury experience)
+  // When a variant is selected, show ONLY its own images.
+  // Hover image (slot 2 / index 1 of base product images) must NEVER appear on product details page.
   const displayImages = React.useMemo(() => {
-    const list: typeof product.images = [];
-    const seen = new Set<string>();
-
-    const addImg = (img?: { id?: string; secure_url?: string; alt_text?: string; sort_order?: number; cloudinary_public_id?: string }) => {
-      if (img?.secure_url && !seen.has(img.secure_url)) {
-        seen.add(img.secure_url);
-        list.push({
-          id: img.id || `img-${seen.size}`,
-          secure_url: img.secure_url,
-          cloudinary_public_id: img.cloudinary_public_id || "",
-          alt_text: img.alt_text || product.name,
-          sort_order: img.sort_order || list.length,
-        });
-      }
-    };
-
-    // If active variant has images, add them first
+    // 1. If active variant has dedicated images, show ONLY that variant's images
     if (activeVariant?.images && activeVariant.images.length > 0) {
-      activeVariant.images.forEach(addImg);
-    }
-    // Add all base product images (index 0 is main, index 1 is hover, extra images follow)
-    if (product.images && product.images.length > 0) {
-      product.images.forEach(addImg);
+      return activeVariant.images.map((img, idx) => ({
+        id: img.id || `var-${selectedColorIndex}-img-${idx}`,
+        secure_url: img.secure_url,
+        cloudinary_public_id: img.cloudinary_public_id || "",
+        alt_text: img.alt_text || `${product.name} ${activeVariant.name || ""}`.trim(),
+        sort_order: img.sort_order || idx,
+      }));
     }
 
-    if (list.length === 0) {
-      list.push({
+    // 2. Otherwise, fallback to base product images EXCLUDING the hover image (index 1 is strictly for product card hover)
+    if (product.images && product.images.length > 0) {
+      // Index 0 is main. Index 1 is hover (excluded from product details page). Index 2+ are extra angles.
+      const filtered = product.images.filter((_, idx) => idx !== 1);
+      if (filtered.length > 0) {
+        return filtered;
+      }
+      return [product.images[0]];
+    }
+
+    // 3. Fallback placeholder
+    return [
+      {
         id: "fallback",
         secure_url: "/images/placeholder.jpg",
         alt_text: product.name,
         sort_order: 0,
         cloudinary_public_id: "",
-      });
-    }
-
-    return list;
-  }, [activeVariant, product.images, product.name]);
+      },
+    ];
+  }, [activeVariant, selectedColorIndex, product.images, product.name]);
 
   const currentImage = displayImages[activeImageIndex] || displayImages[0];
-  const hoverImage = displayImages[1]?.secure_url || currentImage.secure_url;
 
   const discountPercent =
     product.compare_at_price && product.compare_at_price > product.price

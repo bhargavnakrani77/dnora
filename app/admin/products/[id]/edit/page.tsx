@@ -30,6 +30,7 @@ import {
   Save,
 } from "lucide-react";
 import { ProductCategory, ProductColorVariant, ProductImage } from "@/types";
+import { getValidColorHex } from "@/lib/utils";
 
 const LUXURY_COLOR_PRESETS = [
   { name: "Noir Black", hex: "#111111" },
@@ -355,7 +356,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
 
   const triggerVariantImageUpload = (
     variantIndex: number,
-    type: "main" | "hover" | "extra",
+    type: "main" | "hover" | "extra" = "extra",
     extraIndex?: number
   ) => {
     setVariantUploadTarget({ variantIndex, type, extraIndex });
@@ -366,14 +367,14 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
     const file = e.target.files?.[0];
     if (!file || !variantUploadTarget) return;
 
-    const { variantIndex, type, extraIndex } = variantUploadTarget;
+    const { variantIndex, extraIndex } = variantUploadTarget;
     setVariantUploadingIndex(variantIndex);
     setErrorMsg(null);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("folder", "dnora/products/variants");
+      formData.append("folder", "dnora/products");
 
       const res = await fetch("/api/media/upload", {
         method: "POST",
@@ -389,7 +390,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
         secure_url: json.secure_url,
         cloudinary_public_id: json.public_id || `var_${Date.now()}`,
         alt_text: `${name || "DNORA"} - Variant Image`,
-        sort_order: type === "main" ? 1 : type === "hover" ? 2 : 3,
+        sort_order: 1,
       };
 
       setColorVariants((prev) => {
@@ -398,11 +399,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
         if (!targetVar) return prev;
 
         const currentImages = targetVar.images ? [...targetVar.images] : [];
-        if (type === "main") {
-          currentImages[0] = newImg;
-        } else if (type === "hover") {
-          currentImages[1] = newImg;
-        } else if (type === "extra" && extraIndex !== undefined) {
+        if (extraIndex !== undefined && extraIndex < currentImages.length) {
           currentImages[extraIndex] = newImg;
         } else {
           currentImages.push(newImg);
@@ -486,7 +483,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
         color_variants: colorVariants.map((v) => ({
           id: v.id,
           name: v.name?.trim() || "",
-          color_hex: v.color_hex,
+          color_hex: getValidColorHex(v.color_hex),
           images: v.images && v.images.length > 0 ? v.images : (images.length > 0 ? [images[0]] : []),
         })),
       };
@@ -1190,23 +1187,29 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
               </div>
 
               {/* Multi-Color Variants & Swatches */}
+              {/* Multi-Color Variants & Swatches (Optional) */}
               <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
-                <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
-                      Visual Variations
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
+                        Visual Variations
+                      </span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
+                        Optional
+                      </span>
+                    </div>
                     <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
-                      Color Swatches & Dedicated Gallery
+                      Color Swatches &amp; Dedicated Gallery
                     </h2>
-                    <p className="text-xs text-neutral-500 font-light">
-                      Add colorway swatches. Each color swatch can have its own dedicated primary and angle imagery.
+                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                      Optional: Add colorways if this item comes in multiple shades. Customers see matching photos when clicking each swatch.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleAddColorVariant}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-black transition cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-black transition cursor-pointer self-start"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Color</span>
@@ -1216,9 +1219,9 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
                 {colorVariants.length === 0 ? (
                   <div className="text-center py-8 bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
                     <Palette className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-neutral-700">No Color Variants Configured</p>
+                    <p className="text-xs font-bold text-neutral-700">No Color Variants Configured (Optional)</p>
                     <p className="text-[11px] text-neutral-400 max-w-sm mx-auto mt-0.5">
-                      If this silhouette is available in multiple Italian shades (e.g. Noir, Cognac, Olive), add them here.
+                      If this item comes in multiple shades (e.g. Noir Black, Ocean Blue), click below to add them. Otherwise, leave empty to display base photos.
                     </p>
                     <button
                       type="button"
@@ -1230,85 +1233,104 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {colorVariants.map((variant, vIdx) => (
-                      <div
-                        key={variant.id || vIdx}
-                        className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-3"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full border border-neutral-300 shadow-xs shrink-0" style={{ backgroundColor: variant.color_hex }} />
-                            <input
-                              type="text"
-                              value={variant.name}
-                              onChange={(e) => handleUpdateVariant(vIdx, { name: e.target.value })}
-                              placeholder="Color Name (Optional - leave blank for dot only)"
-                              className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-300 rounded-lg text-neutral-900 w-64"
-                            />
-                            <input
-                              type="color"
-                              value={variant.color_hex}
-                              onChange={(e) => handleUpdateVariant(vIdx, { color_hex: e.target.value })}
-                              className="w-7 h-7 rounded border border-neutral-300 p-0.5 cursor-pointer bg-white"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariant(vIdx)}
-                            className="text-neutral-400 hover:text-rose-600 transition cursor-pointer p-1"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* Variant Photos */}
-                        <div className="flex items-center gap-3 pt-1">
-                          {/* Main Variant Photo */}
-                          <div
-                            onClick={() => triggerVariantImageUpload(vIdx, "main")}
-                            className="relative w-16 h-20 rounded-lg border-2 border-dashed border-neutral-300 hover:border-black bg-white flex flex-col items-center justify-center cursor-pointer overflow-hidden group"
-                          >
-                            {variant.images && variant.images[0] ? (
-                              <Image
-                                src={variant.images[0].secure_url}
-                                alt={variant.name || "Variant Main"}
-                                fill
-                                className="object-contain p-1"
+                    {colorVariants.map((variant, vIdx) => {
+                      const safeHex = getValidColorHex(variant.color_hex);
+                      const isUploadingThis = variantUploadingIndex === vIdx;
+                      return (
+                        <div
+                          key={variant.id || vIdx}
+                          className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-6 h-6 rounded-full border border-neutral-300 shadow-xs shrink-0"
+                                style={{ backgroundColor: safeHex }}
                               />
-                            ) : (
-                              <div className="text-center p-1">
-                                <Plus className="w-4 h-4 text-neutral-400 mx-auto" />
-                                <span className="text-[9px] font-bold text-neutral-500">Main</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Hover Variant Photo */}
-                          <div
-                            onClick={() => triggerVariantImageUpload(vIdx, "hover")}
-                            className="relative w-16 h-20 rounded-lg border-2 border-dashed border-neutral-300 hover:border-black bg-white flex flex-col items-center justify-center cursor-pointer overflow-hidden group"
-                          >
-                            {variant.images && variant.images[1] ? (
-                              <Image
-                                src={variant.images[1].secure_url}
-                                alt={`${variant.name || "Variant"} hover`}
-                                fill
-                                className="object-contain p-1"
+                              <input
+                                type="text"
+                                value={variant.name || ""}
+                                onChange={(e) => handleUpdateVariant(vIdx, { name: e.target.value })}
+                                placeholder="Color Name (Optional - leave blank for dot only)"
+                                className="px-2.5 py-1.5 text-xs font-medium bg-white border border-neutral-300 rounded-lg text-neutral-900 w-64 focus:outline-none focus:border-black"
                               />
-                            ) : (
-                              <div className="text-center p-1">
-                                <Plus className="w-4 h-4 text-neutral-400 mx-auto" />
-                                <span className="text-[9px] font-bold text-neutral-500">Angle</span>
-                              </div>
-                            )}
+                              <input
+                                type="color"
+                                value={safeHex}
+                                onChange={(e) => handleUpdateVariant(vIdx, { color_hex: e.target.value })}
+                                className="w-8 h-8 rounded-lg border border-neutral-300 p-0.5 cursor-pointer bg-white"
+                                title="Pick Color Code"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveVariant(vIdx)}
+                              className="text-neutral-400 hover:text-rose-600 transition cursor-pointer p-1"
+                              title="Delete Variant"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
 
-                          <p className="text-[11px] text-neutral-500 font-light">
-                            Click boxes to upload color-specific photos.
-                          </p>
+                          {/* Dedicated Gallery for this Color Variant */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-neutral-700 uppercase tracking-wider">
+                                Variant Photos ({variant.images?.length || 0})
+                              </span>
+                              <span className="text-[10.5px] text-neutral-400">
+                                When customers select this color, only these photos will be shown
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2.5 items-center">
+                              {variant.images?.map((img, imgIdx) => (
+                                <div
+                                  key={imgIdx}
+                                  className="relative w-16 h-20 rounded-xl bg-white overflow-hidden border border-neutral-300 group shrink-0 shadow-xs"
+                                >
+                                  <Image
+                                    src={img.secure_url}
+                                    alt={variant.name || `Photo ${imgIdx + 1}`}
+                                    fill
+                                    className="object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
+                                      className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer"
+                                      title="Remove Photo"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[8px] font-mono font-bold">
+                                    #{imgIdx + 1}
+                                  </span>
+                                </div>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={() => triggerVariantImageUpload(vIdx, "extra", variant.images ? variant.images.length : 0)}
+                                disabled={isUploadingThis}
+                                className="w-16 h-20 rounded-xl border-2 border-dashed border-neutral-300 hover:border-black bg-white hover:bg-neutral-50 flex flex-col items-center justify-center text-[10.5px] text-neutral-600 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+                              >
+                                {isUploadingThis ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
+                                ) : (
+                                  <>
+                                    <Plus className="w-4 h-4 text-neutral-500 mb-0.5" />
+                                    <span className="font-semibold text-[9px]">Add Photo</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

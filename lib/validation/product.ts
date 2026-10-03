@@ -12,7 +12,7 @@ export const productImageSchema = z.object({
 export const productColorVariantSchema = z.object({
   id: z.string().default(() => `var_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`),
   name: z.string().optional().default(""),
-  color_hex: z.string().min(1, "Color code is required"),
+  color_hex: z.string().optional().default("#111111"),
   images: z.array(productImageSchema).default([]),
 });
 

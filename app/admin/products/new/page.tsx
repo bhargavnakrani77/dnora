@@ -29,6 +29,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ProductCategory, ProductColorVariant, ProductImage } from "@/types";
+import { getValidColorHex } from "@/lib/utils";
 
 const LUXURY_COLOR_PRESETS = [
   { name: "Noir Black", hex: "#111111" },
@@ -293,7 +294,7 @@ export default function AdminNewProductPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("folder", "dnora/variants");
+      formData.append("folder", "dnora/products");
 
       const res = await fetch("/api/media/upload", {
         method: "POST",
@@ -406,8 +407,8 @@ export default function AdminNewProductPage() {
         color_variants: colorVariants.map((v) => ({
           id: v.id,
           name: v.name?.trim() || "",
-          color_hex: v.color_hex,
-          images: v.images && v.images.length > 0 ? v.images : [images[0]],
+          color_hex: getValidColorHex(v.color_hex),
+          images: v.images && v.images.length > 0 ? v.images : [],
         })),
       };
 
@@ -1035,13 +1036,18 @@ export default function AdminNewProductPage() {
               </div>
             </div>
 
-            {/* Color Swatch Variants */}
+            {/* Color Swatch Variants (Optional) */}
             <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
                 <div>
-                  <h2 className="text-base font-bold text-neutral-950 font-serif">Color Swatches &amp; Variant Imagery</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-neutral-950 font-serif">Color Swatches &amp; Variant Imagery</h2>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
+                      Optional
+                    </span>
+                  </div>
                   <p className="text-xs text-neutral-500 font-light mt-0.5">
-                    Add available colors. Customers can click color swatches on the product page to see matching photos!
+                    Optional: Add available colors. Customers see matching photos when clicking each color swatch!
                   </p>
                 </div>
                 <button
@@ -1064,92 +1070,125 @@ export default function AdminNewProductPage() {
 
               {colorVariants.length === 0 ? (
                 <div className="p-8 text-center bg-neutral-50 rounded-2xl border border-dashed border-neutral-200 text-xs text-neutral-500 font-light">
-                  No additional color variants added. Click &quot;Add Color Variant&quot; if this silhouette comes in multiple shades.
+                  No additional color variants added (Optional). Click &quot;Add Color Variant&quot; if this silhouette comes in multiple shades.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {colorVariants.map((variant, vIdx) => (
-                    <div
-                      key={variant.id || vIdx}
-                      className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 space-y-3"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="color"
-                            value={variant.color_hex}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setColorVariants((prev) => {
-                                const next = [...prev];
-                                next[vIdx].color_hex = val;
-                                return next;
-                              });
-                            }}
-                            className="w-8 h-8 rounded-lg border border-neutral-300 cursor-pointer p-0.5 bg-white"
-                          />
-                          <input
-                            type="text"
-                            value={variant.name}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setColorVariants((prev) => {
-                                const next = [...prev];
-                                next[vIdx].name = val;
-                                return next;
-                              });
-                            }}
-                            placeholder="Color Name (Optional - leave blank for dot only)"
-                            className="text-xs font-medium text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg w-72"
-                          />
+                  {colorVariants.map((variant, vIdx) => {
+                    const safeHex = getValidColorHex(variant.color_hex);
+                    const isUploadingThis = variantUploadingIndex === vIdx;
+                    return (
+                      <div
+                        key={variant.id || vIdx}
+                        className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 space-y-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="w-6 h-6 rounded-full border border-neutral-300 shadow-xs shrink-0"
+                              style={{ backgroundColor: safeHex }}
+                            />
+                            <input
+                              type="color"
+                              value={safeHex}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setColorVariants((prev) => {
+                                  const next = [...prev];
+                                  next[vIdx].color_hex = val;
+                                  return next;
+                                });
+                              }}
+                              className="w-8 h-8 rounded-lg border border-neutral-300 cursor-pointer p-0.5 bg-white"
+                              title="Pick Color Code"
+                            />
+                            <input
+                              type="text"
+                              value={variant.name || ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setColorVariants((prev) => {
+                                  const next = [...prev];
+                                  next[vIdx].name = val;
+                                  return next;
+                                });
+                              }}
+                              placeholder="Color Name (Optional - leave blank for dot only)"
+                              className="text-xs font-medium text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg w-72 focus:outline-none focus:border-black"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColorVariant(vIdx)}
+                            className="p-1 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="Remove Variant"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveColorVariant(vIdx)}
-                          className="p-1 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title="Remove Variant"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        {/* Variant Photos */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-neutral-700 uppercase tracking-wider">
+                              Variant Photos ({variant.images?.length || 0})
+                            </span>
+                            <span className="text-[10.5px] text-neutral-400">
+                              When customers select this color, only these photos will be shown
+                            </span>
+                          </div>
 
-                      {/* Variant Photo Slots */}
-                      <div className="flex flex-wrap gap-2 pt-1 items-center">
-                        {variant.images?.map((img, imgIdx) => (
-                          <div
-                            key={imgIdx}
-                            className="relative w-14 h-16 rounded-lg bg-neutral-200 overflow-hidden border border-neutral-300 group shrink-0"
-                          >
-                            <Image src={img.secure_url} alt="" fill className="object-cover" />
+                          <div className="flex flex-wrap gap-2.5 items-center">
+                            {variant.images?.map((img, imgIdx) => (
+                              <div
+                                key={imgIdx}
+                                className="relative w-16 h-20 rounded-xl bg-white overflow-hidden border border-neutral-300 group shrink-0 shadow-xs"
+                              >
+                                <Image src={img.secure_url} alt="" fill className="object-cover" />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
+                                    className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer"
+                                    title="Remove Photo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[8px] font-mono font-bold">
+                                  #{imgIdx + 1}
+                                </span>
+                              </div>
+                            ))}
+
                             <button
                               type="button"
-                              onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
-                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white cursor-pointer"
+                              onClick={() => {
+                                setVariantUploadTarget({
+                                  variantIndex: vIdx,
+                                  type: "extra",
+                                  extraIndex: variant.images ? variant.images.length : 0,
+                                });
+                                variantFileInputRef.current?.click();
+                              }}
+                              disabled={isUploadingThis}
+                              className="w-16 h-20 rounded-xl border-2 border-dashed border-neutral-300 hover:border-black bg-white hover:bg-neutral-50 flex flex-col items-center justify-center text-[10.5px] text-neutral-600 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {isUploadingThis ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4 text-neutral-500 mb-0.5" />
+                                  <span className="font-semibold text-[9px]">Add Photo</span>
+                                </>
+                              )}
                             </button>
                           </div>
-                        ))}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVariantUploadTarget({
-                              variantIndex: vIdx,
-                              type: "extra",
-                              extraIndex: variant.images ? variant.images.length : 0,
-                            });
-                            variantFileInputRef.current?.click();
-                          }}
-                          className="w-14 h-16 rounded-lg border border-dashed border-neutral-300 bg-white hover:bg-neutral-100 flex flex-col items-center justify-center text-[10px] text-neutral-500 cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Photo</span>
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

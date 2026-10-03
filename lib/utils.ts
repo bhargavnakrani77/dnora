@@ -54,3 +54,13 @@ export function getRequestOrigin(req?: {
   return req?.nextUrl?.origin || "http://localhost:3000";
 }
 
+export function getValidColorHex(hex?: string | null): string {
+  if (!hex || typeof hex !== "string") return "#111111";
+  const trimmed = hex.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`.toLowerCase();
+  }
+  return "#111111";
+}
+
