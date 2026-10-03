@@ -11,6 +11,8 @@ import {
   Loader2,
   Move,
   Sparkles,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 interface CircularImageCropperModalProps {
@@ -34,7 +36,11 @@ export function CircularImageCropperModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [processing, setProcessing] = useState(false);
+  const [fitMode, setFitMode] = useState<"fit" | "fill">("fit");
+  const [baseSize, setBaseSize] = useState<{ width: number; height: number }>({ width: 240, height: 240 });
+
   const viewportRef = useRef<HTMLDivElement>(null);
+  const maskRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Sync state when props change during render
@@ -51,9 +57,40 @@ export function CircularImageCropperModal({
     }
   }
 
-  const handleImageLoad = () => {
+  const applyDimensions = (mode: "fit" | "fill") => {
+    if (!imgRef.current) return;
+    const nw = imgRef.current.naturalWidth || 260;
+    const nh = imgRef.current.naturalHeight || 260;
+    const aspect = nw / nh;
+
+    if (mode === "fit") {
+      // Fit entire handbag comfortably inside the 260px circle with 20px breathing room
+      const targetSize = 220;
+      if (aspect >= 1) {
+        setBaseSize({ width: targetSize, height: targetSize / aspect });
+      } else {
+        setBaseSize({ width: targetSize * aspect, height: targetSize });
+      }
+    } else {
+      // Fill circle completely (covers edge-to-edge)
+      const targetSize = 260;
+      if (aspect >= 1) {
+        setBaseSize({ width: targetSize * aspect, height: targetSize });
+      } else {
+        setBaseSize({ width: targetSize, height: targetSize / aspect });
+      }
+    }
     setPan({ x: 0, y: 0 });
     setZoom(1);
+  };
+
+  const handleImageLoad = () => {
+    applyDimensions(fitMode);
+  };
+
+  const handleToggleMode = (mode: "fit" | "fill") => {
+    setFitMode(mode);
+    applyDimensions(mode);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -130,18 +167,17 @@ export function CircularImageCropperModal({
   // Wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomStep = e.deltaY < 0 ? 0.1 : -0.1;
-    setZoom((prev) => Math.min(Math.max(1, Number((prev + zoomStep).toFixed(2))), 3.5));
+    const zoomStep = e.deltaY < 0 ? 0.08 : -0.08;
+    setZoom((prev) => Math.min(Math.max(0.5, Number((prev + zoomStep).toFixed(2))), 3.5));
   };
 
   const handleReset = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    applyDimensions(fitMode);
   };
 
-  // Export cropped circular image to canvas and upload
+  // Export cropped circular image to canvas with exact screen-aligned subpixel math
   const handleCropAndApply = async () => {
-    if (!imgRef.current || !viewportRef.current) return;
+    if (!imgRef.current || !viewportRef.current || !maskRef.current) return;
 
     setProcessing(true);
     try {
@@ -149,49 +185,51 @@ export function CircularImageCropperModal({
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not create canvas context");
 
-      // We export high resolution 600x600 for sharp luxury display
+      // Export high resolution 600x600 for sharp luxury display
       const exportSize = 600;
       canvas.width = exportSize;
       canvas.height = exportSize;
 
-      // Circle mask dimension in viewport
-      const circleViewportDiameter = 260; // size of the circular cut-out in px
-      const scaleFactor = exportSize / circleViewportDiameter;
-
       const img = imgRef.current;
+      const mask = maskRef.current;
 
-      // Render image onto offscreen canvas with circular clip
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(exportSize / 2, exportSize / 2, exportSize / 2, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
+      const imgRect = img.getBoundingClientRect();
+      const maskRect = mask.getBoundingClientRect();
 
-      // Clear background
-      ctx.fillStyle = "#FAF8F5";
+      // Exact scale factor from 260px on-screen preview to 600px export
+      const scale = exportSize / maskRect.width;
+
+      // Difference between image center and mask center
+      const imgCenterX = imgRect.left + imgRect.width / 2;
+      const imgCenterY = imgRect.top + imgRect.height / 2;
+      const maskCenterX = maskRect.left + maskRect.width / 2;
+      const maskCenterY = maskRect.top + maskRect.height / 2;
+
+      const diffX = imgCenterX - maskCenterX;
+      const diffY = imgCenterY - maskCenterY;
+
+      const exportW = imgRect.width * scale;
+      const exportH = imgRect.height * scale;
+      const exportX = (exportSize / 2) + (diffX * scale) - (exportW / 2);
+      const exportY = (exportSize / 2) + (diffY * scale) - (exportH / 2);
+
+      // Fill background with pure white #FFFFFF (seamlessly blends with storefront circular cards)
+      ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, exportSize, exportSize);
 
-      // Compute drawn image coordinates
-      const renderedImgWidth = img.width * zoom * scaleFactor;
-      const renderedImgHeight = img.height * zoom * scaleFactor;
-
-      const drawX = (exportSize / 2) + (pan.x * scaleFactor) - (renderedImgWidth / 2);
-      const drawY = (exportSize / 2) + (pan.y * scaleFactor) - (renderedImgHeight / 2);
-
-      ctx.drawImage(img, drawX, drawY, renderedImgWidth, renderedImgHeight);
-      ctx.restore();
+      // Draw image onto canvas
+      ctx.drawImage(img, exportX, exportY, exportW, exportH);
 
       let blob: Blob | null = null;
       try {
         blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob((b) => resolve(b), "image/jpeg", 0.92)
+          canvas.toBlob((b) => resolve(b), "image/png")
         );
       } catch (taintErr) {
         console.warn("Canvas export tainted, using fallback:", taintErr);
       }
 
       if (!blob) {
-        // If imageSrc is already an online URL, pass it back directly so user is never blocked
         if (imageSrc && (imageSrc.startsWith("http://") || imageSrc.startsWith("https://"))) {
           onCropComplete(imageSrc);
           onClose();
@@ -202,7 +240,7 @@ export function CircularImageCropperModal({
 
       // Upload blob to media upload API
       const formData = new FormData();
-      formData.append("file", blob, `category-crop-${Date.now()}.jpg`);
+      formData.append("file", blob, `category-crop-${Date.now()}.png`);
       formData.append("folder", "dnora/categories");
 
       const uploadRes = await fetch("/api/upload", {
@@ -235,7 +273,7 @@ export function CircularImageCropperModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 select-none">
       <div className="bg-[#0F141C] text-white rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border border-white/10 flex flex-col items-center gap-5">
         
         {/* Header */}
@@ -248,7 +286,7 @@ export function CircularImageCropperModal({
               </h3>
             </div>
             <p className="text-[11px] text-white/50 mt-0.5">
-              Drag to pan & use slider/wheel to zoom into the circular mask.
+              Drag to position & choose Fit or Fill so the bag never cuts off.
             </p>
           </div>
           <button
@@ -260,7 +298,35 @@ export function CircularImageCropperModal({
           </button>
         </div>
 
-        {/* Circular Viewport (Instagram PFP style) */}
+        {/* Fit Mode Controls */}
+        <div className="w-full flex items-center justify-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10 text-xs">
+          <button
+            type="button"
+            onClick={() => handleToggleMode("fit")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition cursor-pointer ${
+              fitMode === "fit"
+                ? "bg-white text-black shadow-xs"
+                : "text-white/70 hover:text-white"
+            }`}
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            <span>Fit Entire Bag (સંપૂર્ણ બેગ દેખાય)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleToggleMode("fill")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg font-semibold transition cursor-pointer ${
+              fitMode === "fill"
+                ? "bg-white text-black shadow-xs"
+                : "text-white/70 hover:text-white"
+            }`}
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Fill Circle (સંપૂર્ણ ભરો)</span>
+          </button>
+        </div>
+
+        {/* Circular Viewport */}
         <div className="w-full flex flex-col items-center justify-center">
           <div
             ref={viewportRef}
@@ -269,7 +335,7 @@ export function CircularImageCropperModal({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onWheel={handleWheel}
-            className="relative w-[300px] h-[300px] bg-neutral-900 rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing border border-white/10 flex items-center justify-center shadow-inner"
+            className="relative w-[300px] h-[300px] bg-white rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing border border-white/10 flex items-center justify-center shadow-inner"
           >
             {/* The Image being transformed */}
             {imageSrc ? (
@@ -283,30 +349,34 @@ export function CircularImageCropperModal({
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                   transformOrigin: "center center",
-                  maxWidth: "280px",
-                  maxHeight: "280px",
-                  objectFit: "contain",
+                  width: `${baseSize.width}px`,
+                  height: `${baseSize.height}px`,
+                  maxWidth: "none",
+                  maxHeight: "none",
                   userSelect: "none",
                   pointerEvents: "none",
                 }}
                 className="transition-transform duration-75 will-change-transform"
               />
             ) : (
-              <div className="text-xs text-white/40 text-center p-4">
+              <div className="text-xs text-neutral-400 text-center p-4">
                 No image loaded. Please upload a photo below.
               </div>
             )}
 
-            {/* Circular Mask Overlay (Instagram PFP Cut-out) */}
+            {/* Circular Mask Overlay */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-[260px] h-[260px] rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.68)] ring-2 ring-white/90 relative">
+              <div
+                ref={maskRef}
+                className="w-[260px] h-[260px] rounded-full shadow-[0_0_0_9999px_rgba(15,20,28,0.78)] ring-2 ring-white/90 relative"
+              >
                 {/* Subtle alignment crosshair indicator */}
                 <div className="absolute inset-0 rounded-full border border-dashed border-white/20 pointer-events-none" />
               </div>
             </div>
 
             {/* Drag hint badge */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-[9.5px] uppercase font-bold tracking-widest text-white/80 flex items-center gap-1.5">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md text-[9.5px] uppercase font-bold tracking-widest text-white/90 flex items-center gap-1.5">
               <Move className="w-2.5 h-2.5" />
               <span>Drag to position</span>
             </div>
@@ -318,7 +388,7 @@ export function CircularImageCropperModal({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.max(1, Number((prev - 0.1).toFixed(2))))}
+              onClick={() => setZoom((prev) => Math.max(0.5, Number((prev - 0.1).toFixed(2))))}
               className="p-1.5 text-white/70 hover:text-white rounded-md hover:bg-white/10 transition cursor-pointer"
               title="Zoom out"
             >
@@ -327,8 +397,8 @@ export function CircularImageCropperModal({
 
             <input
               type="range"
-              min="1"
-              max="3.5"
+              min="0.5"
+              max="3.0"
               step="0.05"
               value={zoom}
               onChange={(e) => setZoom(parseFloat(e.target.value))}
@@ -337,7 +407,7 @@ export function CircularImageCropperModal({
 
             <button
               type="button"
-              onClick={() => setZoom((prev) => Math.min(3.5, Number((prev + 0.1).toFixed(2))))}
+              onClick={() => setZoom((prev) => Math.min(3.0, Number((prev + 0.1).toFixed(2))))}
               className="p-1.5 text-white/70 hover:text-white rounded-md hover:bg-white/10 transition cursor-pointer"
               title="Zoom in"
             >

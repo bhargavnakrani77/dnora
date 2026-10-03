@@ -163,12 +163,12 @@ export function CircularCollections({
                   href={item.href}
                   className="group flex flex-col items-center flex-shrink-0 snap-start text-center focus:outline-none"
                 >
-                  {/* Circular Media Shell */}
+                  {/* Circular Media Shell - Single crisp luxury ring, seamless pure white background */}
                   <div
-                    className={`relative w-[86px] h-[86px] sm:w-[98px] sm:h-[98px] md:w-[110px] md:h-[110px] rounded-full p-[3px] sm:p-1 bg-white ring-2 transition-all duration-300 ${
+                    className={`relative w-[86px] h-[86px] sm:w-[98px] sm:h-[98px] md:w-[110px] md:h-[110px] rounded-full bg-white ring-1 transition-all duration-300 ${
                       isViewAll
-                        ? "ring-neutral-900 group-hover:ring-black group-hover:shadow-[0_6px_22px_rgba(0,0,0,0.14)]"
-                        : "ring-neutral-300/85 group-hover:ring-neutral-900 group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)]"
+                        ? "ring-neutral-900 group-hover:ring-black group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.14)]"
+                        : "ring-neutral-200 group-hover:ring-neutral-900 group-hover:shadow-[0_8px_20px_rgba(0,0,0,0.08)]"
                     }`}
                   >
                     {/* Optional Badge */}
@@ -179,15 +179,15 @@ export function CircularCollections({
                     )}
 
                     {/* Inner Image Frame */}
-                    <div className="w-full h-full rounded-full overflow-hidden bg-[#FAF8F5] border border-neutral-200/60 flex items-center justify-center relative">
+                    <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center relative">
                       {item.image ? (
                         <Image
                           src={item.image}
                           alt={item.alt || item.label}
-                          width={220}
-                          height={220}
+                          fill
+                          sizes="(max-width: 640px) 86px, (max-width: 768px) 98px, 110px"
                           loading="lazy"
-                          className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110 ${
+                          className={`object-cover transition-transform duration-500 ease-out group-hover:scale-108 ${
                             isViewAll ? "brightness-90 group-hover:brightness-75" : ""
                           }`}
                         />
