@@ -334,7 +334,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
   const handleAddColorVariant = () => {
     const newVariant: ProductColorVariant = {
       id: `var-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: `Color ${colorVariants.length + 1}`,
+      name: "",
       color_hex: LUXURY_COLOR_PRESETS[colorVariants.length % LUXURY_COLOR_PRESETS.length].hex,
       images: [],
     };
@@ -485,7 +485,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
         })),
         color_variants: colorVariants.map((v) => ({
           id: v.id,
-          name: v.name.trim(),
+          name: v.name?.trim() || "",
           color_hex: v.color_hex,
           images: v.images && v.images.length > 0 ? v.images : (images.length > 0 ? [images[0]] : []),
         })),
@@ -1242,8 +1242,8 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
                               type="text"
                               value={variant.name}
                               onChange={(e) => handleUpdateVariant(vIdx, { name: e.target.value })}
-                              placeholder="Color Name (e.g. Caramel Tan)"
-                              className="px-2.5 py-1 text-xs font-bold bg-white border border-neutral-300 rounded-lg text-neutral-900"
+                              placeholder="Color Name (Optional - leave blank for dot only)"
+                              className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-300 rounded-lg text-neutral-900 w-64"
                             />
                             <input
                               type="color"
@@ -1271,7 +1271,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
                             {variant.images && variant.images[0] ? (
                               <Image
                                 src={variant.images[0].secure_url}
-                                alt={variant.name}
+                                alt={variant.name || "Variant Main"}
                                 fill
                                 className="object-contain p-1"
                               />
@@ -1291,7 +1291,7 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
                             {variant.images && variant.images[1] ? (
                               <Image
                                 src={variant.images[1].secure_url}
-                                alt={`${variant.name} hover`}
+                                alt={`${variant.name || "Variant"} hover`}
                                 fill
                                 className="object-contain p-1"
                               />

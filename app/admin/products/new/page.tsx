@@ -271,7 +271,7 @@ export default function AdminNewProductPage() {
   const handleAddColorVariant = () => {
     const newVariant: ProductColorVariant = {
       id: `var_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      name: "New Colorway",
+      name: "",
       color_hex: "#111111",
       images: images.length > 0 ? [images[0]] : [],
     };
@@ -405,7 +405,7 @@ export default function AdminNewProductPage() {
         })),
         color_variants: colorVariants.map((v) => ({
           id: v.id,
-          name: v.name.trim(),
+          name: v.name?.trim() || "",
           color_hex: v.color_hex,
           images: v.images && v.images.length > 0 ? v.images : [images[0]],
         })),
@@ -1099,8 +1099,8 @@ export default function AdminNewProductPage() {
                                 return next;
                               });
                             }}
-                            placeholder="Color Name (e.g. Noir Black)"
-                            className="text-xs font-bold text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg"
+                            placeholder="Color Name (Optional - leave blank for dot only)"
+                            className="text-xs font-medium text-neutral-900 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg w-72"
                           />
                         </div>
 

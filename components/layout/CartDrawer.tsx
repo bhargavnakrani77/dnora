@@ -163,9 +163,17 @@ export function CartDrawer() {
                           </button>
                         </div>
                         {selectedVariant && (
-                          <p className="text-[11px] text-neutral-500 mt-0.5">
-                            {typeof selectedVariant === "string" ? selectedVariant : selectedVariant.name}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-neutral-500">
+                            {typeof selectedVariant === "object" && selectedVariant.color_hex && (
+                              <span
+                                className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                                style={{ backgroundColor: selectedVariant.color_hex }}
+                              />
+                            )}
+                            {(typeof selectedVariant === "string" ? selectedVariant : selectedVariant.name)?.trim() ? (
+                              <span>{typeof selectedVariant === "string" ? selectedVariant : selectedVariant.name}</span>
+                            ) : null}
+                          </div>
                         )}
                         <p className="text-[11px] text-neutral-400 mt-0.5">{product.sku}</p>
                       </div>

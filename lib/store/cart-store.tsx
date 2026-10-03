@@ -86,11 +86,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const variantObj = typeof selectedColorOrVariant === "object" ? selectedColorOrVariant : undefined;
     const colorStr = typeof selectedColorOrVariant === "string" ? selectedColorOrVariant : variantObj?.name;
 
-    const existingIndex = items.findIndex(
-      (item) =>
-        item.product.id === product.id &&
-        (item.selectedVariant?.name === variantObj?.name || item.selectedColor === colorStr)
-    );
+    const existingIndex = items.findIndex((item) => {
+      if (item.product.id !== product.id) return false;
+      if (variantObj || item.selectedVariant) {
+        if (variantObj?.id && item.selectedVariant?.id) {
+          return item.selectedVariant.id === variantObj.id;
+        }
+        if (variantObj?.color_hex && item.selectedVariant?.color_hex) {
+          return item.selectedVariant.color_hex === variantObj.color_hex;
+        }
+        return item.selectedVariant?.name === variantObj?.name;
+      }
+      return item.selectedColor === colorStr;
+    });
     let updated: CartItem[];
     if (existingIndex > -1) {
       updated = [...items];

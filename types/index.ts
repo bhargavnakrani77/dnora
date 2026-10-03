@@ -54,7 +54,7 @@ export interface ProductFlag {
 
 export interface ProductColorVariant {
   id?: string;
-  name: string; // e.g., "Noir Black", "Caramel Tan", "Ivory Cream"
+  name?: string; // Optional: e.g., "Noir Black", "Caramel Tan", or empty if only color dot
   color_hex: string; // e.g., "#1A1A1A", "#8B5A2B"
   hex?: string; // convenient alias
   images: ProductImage[];
@@ -150,12 +150,7 @@ export interface CartItem {
   product: Product;
   quantity: number;
   selectedColor?: string;
-  selectedVariant?: {
-    name: string;
-    color_hex?: string;
-    hex?: string;
-    images?: string[] | ProductImage[];
-  };
+  selectedVariant?: ProductColorVariant;
 }
 
 export interface AdminDashboardStats {

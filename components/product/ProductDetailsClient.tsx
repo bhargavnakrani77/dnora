@@ -298,39 +298,52 @@ export function ProductDetailsClient({ product, relatedProducts }: ProductDetail
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-semibold uppercase tracking-wider text-neutral-900">
-                    Color:{" "}
-                    <strong className="font-medium text-neutral-600">
-                      {activeVariant ? activeVariant.name : "Select Variant"}
-                    </strong>
+                    Color{activeVariant?.name?.trim() ? `: ` : ""}
+                    {activeVariant?.name?.trim() ? (
+                      <strong className="font-medium text-neutral-600">
+                        {activeVariant.name}
+                      </strong>
+                    ) : null}
                   </span>
                   <span className="text-[11px] text-neutral-400">
                     {product.color_variants.length} available
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-2.5 items-center">
                   {product.color_variants.map((variant, idx) => {
                     const isSelected = selectedColorIndex === idx;
+                    const hasName = Boolean(variant.name && variant.name.trim().length > 0);
                     return (
                       <button
-                        key={`${variant.name}-${idx}`}
+                        key={`${variant.name || variant.color_hex || idx}-${idx}`}
                         type="button"
                         onClick={() => {
                           setSelectedColorIndex(idx);
                           setActiveImageIndex(0);
                         }}
-                        className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-all cursor-pointer ${
-                          isSelected
-                            ? "border-neutral-950 bg-neutral-950 text-white font-medium shadow-xs"
-                            : "border-neutral-200 hover:border-neutral-400 bg-white text-neutral-800"
-                        }`}
+                        title={variant.name || `Color option ${idx + 1}`}
+                        aria-label={variant.name ? `Select color ${variant.name}` : `Select color option ${idx + 1}`}
+                        className={
+                          hasName
+                            ? `group relative flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition-all cursor-pointer ${
+                                isSelected
+                                  ? "border-neutral-950 bg-neutral-950 text-white font-medium shadow-xs"
+                                  : "border-neutral-200 hover:border-neutral-400 bg-white text-neutral-800"
+                              }`
+                            : `group relative p-1 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
+                                isSelected
+                                  ? "border-neutral-950 ring-2 ring-neutral-950 ring-offset-2 scale-105"
+                                  : "border-neutral-300 hover:border-neutral-500 hover:scale-105"
+                              }`
+                        }
                       >
                         {variant.color_hex && (
                           <span
-                            className="w-3.5 h-3.5 rounded-full border border-black/15 shrink-0"
+                            className={`${hasName ? "w-3.5 h-3.5" : "w-6 h-6 sm:w-7 sm:h-7"} rounded-full border border-black/15 shrink-0 shadow-inner`}
                             style={{ backgroundColor: variant.color_hex }}
                           />
                         )}
-                        <span>{variant.name}</span>
+                        {hasName && <span>{variant.name}</span>}
                       </button>
                     );
                   })}

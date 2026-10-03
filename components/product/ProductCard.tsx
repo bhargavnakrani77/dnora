@@ -202,15 +202,15 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
                     backgroundColor: hex,
                     boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",
                   }}
-                  aria-label={`Select color ${variant.name}`}
+                  aria-label={variant.name ? `Select color ${variant.name}` : `Select color`}
                 />
               );
             })}
-            {activeVariant && (
+            {activeVariant?.name?.trim() ? (
               <span className="text-[10px] text-neutral-500 font-medium pl-1 truncate">
                 {activeVariant.name}
               </span>
-            )}
+            ) : null}
           </div>
         )}
 
