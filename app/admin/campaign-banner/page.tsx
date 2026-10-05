@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ExternalLink,
   Eye,
+  EyeOff,
   ImageIcon,
   Film,
   Plus,
@@ -54,6 +55,7 @@ export default function AdminCampaignBannerPage() {
   const [formMediaUrl, setFormMediaUrl] = useState("");
   const [formMobileMediaUrl, setFormMobileMediaUrl] = useState("");
   const [formDuration, setFormDuration] = useState(6);
+  const [formIsActive, setFormIsActive] = useState(true);
 
   const desktopFileInputRef = useRef<HTMLInputElement>(null);
   const mobileFileInputRef = useRef<HTMLInputElement>(null);
@@ -108,7 +110,7 @@ export default function AdminCampaignBannerPage() {
     fetchConfig();
   }, []);
 
-  // Instant visibility toggle: persists to server immediately!
+  // Instant whole section visibility toggle: persists to server immediately!
   const handleToggleVisibility = async () => {
     const nextActive = !isActive;
     setIsActive(nextActive);
@@ -123,8 +125,8 @@ export default function AdminCampaignBannerPage() {
         showStatus(
           "success",
           nextActive
-            ? "Campaign Banner is now LIVE on Storefront Homepage!"
-            : "Campaign Banner is now HIDDEN from Storefront Homepage!"
+            ? "Entire Campaign Banner section is now LIVE on Storefront Homepage!"
+            : "Entire Campaign Banner section is now HIDDEN from Storefront Homepage!"
         );
       } else {
         setIsActive(!nextActive);
@@ -135,6 +137,37 @@ export default function AdminCampaignBannerPage() {
       showStatus("error", "Network error updating homepage visibility.");
     } finally {
       setTogglingActive(false);
+    }
+  };
+
+  // Instant single slide visibility toggle: persists to server immediately!
+  const handleToggleSlideActive = async (index: number) => {
+    const target = slides[index];
+    if (!target) return;
+    const nextActive = target.is_active === false ? true : false;
+    const updatedSlides = slides.map((s, idx) =>
+      idx === index ? { ...s, is_active: nextActive } : s
+    );
+    setSlides(updatedSlides);
+
+    try {
+      const res = await fetch("/api/promo-banner", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slides: updatedSlides }),
+      });
+      if (res.ok) {
+        showStatus(
+          "success",
+          nextActive
+            ? `Slide #${index + 1} is now Active (Visible in carousel)!`
+            : `Slide #${index + 1} is now Hidden (Draft)!`
+        );
+      } else {
+        showStatus("error", "Failed to update slide visibility.");
+      }
+    } catch {
+      showStatus("error", "Network error updating slide visibility.");
     }
   };
 
@@ -150,6 +183,7 @@ export default function AdminCampaignBannerPage() {
     setFormMediaUrl("");
     setFormMobileMediaUrl("");
     setFormDuration(6);
+    setFormIsActive(true);
     setModalOpen(true);
   };
 
@@ -167,6 +201,7 @@ export default function AdminCampaignBannerPage() {
     setFormMediaUrl(s.media_url || "");
     setFormMobileMediaUrl(s.mobile_media_url || "");
     setFormDuration(s.duration_seconds || 6);
+    setFormIsActive(s.is_active !== false);
     setModalOpen(true);
   };
 
@@ -246,6 +281,7 @@ export default function AdminCampaignBannerPage() {
       media_url: primaryUrl,
       mobile_media_url: formMobileMediaUrl.trim() || undefined,
       duration_seconds: Number(formDuration) || 6,
+      is_active: formIsActive,
     };
 
     if (editingIndex !== null) {
@@ -387,6 +423,75 @@ export default function AdminCampaignBannerPage() {
         </div>
       )}
 
+      {/* 1. Entire Section Visibility Master Card */}
+      <div
+        className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs ${
+          isActive
+            ? "bg-emerald-50/70 border-emerald-200 text-emerald-950"
+            : "bg-neutral-100 border-neutral-300 text-neutral-800"
+        }`}
+      >
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              isActive ? "bg-emerald-600 text-white shadow-xs" : "bg-neutral-400 text-white"
+            }`}
+          >
+            {isActive ? <Sparkles className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold tracking-tight">
+                Entire Campaign Banner Section
+              </h2>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  isActive
+                    ? "bg-emerald-200 text-emerald-900 border border-emerald-300"
+                    : "bg-neutral-200 text-neutral-700 border border-neutral-300"
+                }`}
+              >
+                {isActive ? "● Section Live On Homepage" : "○ Section Hidden From Homepage"}
+              </span>
+            </div>
+            <p className="text-xs text-neutral-600 font-light mt-0.5">
+              {isActive
+                ? "The Campaign Banner carousel is actively shown to all visitors on the storefront homepage."
+                : "The entire Campaign Banner section is completely hidden from the storefront homepage (clean, 0 DOM elements)."}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={togglingActive}
+          onClick={handleToggleVisibility}
+          className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer shrink-0 shadow-xs ${
+            isActive
+              ? "bg-white hover:bg-neutral-50 text-rose-700 border border-neutral-200"
+              : "bg-black hover:bg-neutral-800 text-white"
+          }`}
+          title="Toggle the whole campaign banner section on/off on homepage"
+        >
+          {togglingActive ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Saving...</span>
+            </>
+          ) : isActive ? (
+            <>
+              <EyeOff className="w-3.5 h-3.5 text-rose-600" />
+              <span>Hide Entire Section</span>
+            </>
+          ) : (
+            <>
+              <Eye className="w-3.5 h-3.5" />
+              <span>Show Entire Section</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Interactive Push Carousel Preview */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -394,7 +499,7 @@ export default function AdminCampaignBannerPage() {
             <Eye className="w-4 h-4 text-neutral-500" />
             <span>Storefront Live Preview</span>
             <span className="text-[11px] font-normal text-neutral-400 font-mono">
-              ({slides.length} {slides.length === 1 ? "Slide" : "Slides"})
+              ({slides.filter((s) => s.is_active !== false).length} Active / {slides.length} Total)
             </span>
           </div>
 
@@ -424,27 +529,6 @@ export default function AdminCampaignBannerPage() {
                 📱 Mobile View
               </button>
             </div>
-
-            {/* Instant Toggle: Homepage Visible */}
-            <div className="flex items-center gap-2 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200">
-              <span className="text-xs font-semibold text-neutral-700">Homepage Status:</span>
-              <button
-                type="button"
-                disabled={togglingActive}
-                onClick={handleToggleVisibility}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase transition cursor-pointer ${
-                  isActive
-                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                    : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 border border-neutral-300"
-                }`}
-                title="Click to toggle banner visible/hidden immediately"
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-600 animate-pulse" : "bg-neutral-500"}`}
-                />
-                <span>{isActive ? "Visible (Live)" : "Hidden (Draft)"}</span>
-              </button>
-            </div>
           </div>
         </div>
 
@@ -456,12 +540,18 @@ export default function AdminCampaignBannerPage() {
               : "w-full min-h-[360px] sm:min-h-[440px] md:min-h-[500px] rounded-2xl overflow-hidden shadow-xl"
           }`}
         >
-          {/* Status overlay if banner is hidden */}
-          {!isActive && (
-            <div className="absolute top-3 left-3 z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/80 text-amber-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border border-amber-400/40">
-              <span>○ Banner Hidden from Visitors</span>
+          {/* Status overlay if section is hidden OR if active slide is hidden */}
+          {!isActive ? (
+            <div className="absolute top-3 left-3 z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/85 text-amber-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border border-amber-400/40 shadow-sm">
+              <EyeOff className="w-3 h-3 text-amber-400" />
+              <span>Section Hidden from Homepage</span>
             </div>
-          )}
+          ) : activeSlide?.is_active === false ? (
+            <div className="absolute top-3 left-3 z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/90 text-black text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border border-amber-300 shadow-sm">
+              <EyeOff className="w-3 h-3 text-black" />
+              <span>Slide #{previewIndex + 1} Hidden (Draft)</span>
+            </div>
+          ) : null}
 
           {/* Device badge indicator in preview */}
           <div className="absolute top-3 right-3 z-30 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-mono tracking-wider backdrop-blur-md">
@@ -594,13 +684,33 @@ export default function AdminCampaignBannerPage() {
           </button>
         </div>
 
+        {/* Summary metric badges */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-neutral-100 text-neutral-800 border border-neutral-200">
+            <span>Total Slides:</span>
+            <span className="font-bold">{slides.length}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Active in Carousel:</span>
+            <span className="font-bold">{slides.filter((s) => s.is_active !== false).length}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span>Hidden (Draft):</span>
+            <span className="font-bold">{slides.filter((s) => s.is_active === false).length}</span>
+          </span>
+        </div>
+
         {/* List of Slides */}
         <div className="space-y-4">
           {slides.map((slide, idx) => (
             <div
               key={slide.id || idx}
               className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
-                idx === previewIndex
+                slide.is_active === false
+                  ? "border-dashed border-neutral-300 bg-neutral-100/70 opacity-80 hover:opacity-100"
+                  : idx === previewIndex
                   ? "border-[#B89025] bg-amber-50/20 shadow-xs"
                   : "border-neutral-200 bg-neutral-50/50 hover:border-neutral-300"
               }`}
@@ -663,10 +773,23 @@ export default function AdminCampaignBannerPage() {
 
                 {/* Details */}
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-mono font-bold text-neutral-400">
                       #{idx + 1}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSlideActive(idx)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                        slide.is_active !== false
+                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
+                          : "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300"
+                      }`}
+                      title="Click to toggle this single slide active / hidden"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${slide.is_active !== false ? "bg-emerald-600" : "bg-amber-600"}`} />
+                      <span>{slide.is_active !== false ? "Active (Live)" : "Hidden (Draft)"}</span>
+                    </button>
                     <span className="text-xs font-bold uppercase text-[#B89025] tracking-wider">
                       {slide.tagline || "Tagline"}
                     </span>
@@ -685,7 +808,31 @@ export default function AdminCampaignBannerPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-1 self-end md:self-center">
+              <div className="flex flex-wrap items-center gap-1.5 self-end md:self-center">
+                {/* Single slide visibility toggle button */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleSlideActive(idx)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer shadow-2xs ${
+                    slide.is_active !== false
+                      ? "bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  }`}
+                  title={slide.is_active !== false ? "Hide this single slide from storefront carousel" : "Show this single slide on storefront carousel"}
+                >
+                  {slide.is_active !== false ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Hide Slide</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Show Slide</span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setPreviewIndex(idx)}
@@ -1032,6 +1179,37 @@ export default function AdminCampaignBannerPage() {
                     className="w-full px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:border-black"
                   />
                 </div>
+              </div>
+
+              {/* Individual Slide Visibility Switch */}
+              <div className="flex items-center justify-between bg-neutral-50 p-3.5 rounded-xl border border-neutral-200">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-800 block">
+                    Slide Status
+                  </label>
+                  <p className="text-[11px] text-neutral-500 font-light mt-0.5">
+                    {formIsActive
+                      ? "This slide will be shown in the storefront carousel push loop."
+                      : "This slide will be hidden and skipped on the storefront."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setFormIsActive(!formIsActive)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+                    formIsActive
+                      ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
+                      : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 border border-neutral-300"
+                  }`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      formIsActive ? "bg-emerald-600 animate-pulse" : "bg-neutral-500"
+                    }`}
+                  />
+                  <span>{formIsActive ? "Active (Visible)" : "Hidden (Draft)"}</span>
+                </button>
               </div>
 
               {/* Modal Actions */}

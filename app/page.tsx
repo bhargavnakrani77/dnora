@@ -101,6 +101,12 @@ export default async function HomePage() {
           (sec) => sec.type === "new_in" && getSectionProducts(sec).length > 0
         );
 
+        const isPromoActive =
+          Boolean(promoConfig.is_active) &&
+          (!promoConfig.slides ||
+            promoConfig.slides.length === 0 ||
+            promoConfig.slides.some((s) => s.is_active !== false));
+
         const rendered = activeSections.map((sec, idx) => {
           const secProducts = getSectionProducts(sec);
           if (secProducts.length === 0) return null;
@@ -110,7 +116,7 @@ export default async function HomePage() {
           return (
             <React.Fragment key={sec.id}>
               {/* Promo banner placed seamlessly after the first section */}
-              {promoConfig.is_active && idx === 1 && (
+              {isPromoActive && idx === 1 && (
                 <PromoBanner
                   slides={promoConfig.slides}
                   heading={promoConfig.heading}
@@ -139,18 +145,22 @@ export default async function HomePage() {
       })()}
 
       {/* If only 0 or 1 section was rendered, ensure PromoBanner still displays if active */}
-      {promoConfig.is_active && activeSections.length <= 1 && (
-        <PromoBanner
-          slides={promoConfig.slides}
-          heading={promoConfig.heading}
-          tagline={promoConfig.tagline}
-          description={promoConfig.description}
-          buttonText={promoConfig.button_text}
-          buttonLink={promoConfig.button_link}
-          imageUrl={promoConfig.image_url}
-          isActive={promoConfig.is_active}
-        />
-      )}
+      {promoConfig.is_active &&
+        (!promoConfig.slides ||
+          promoConfig.slides.length === 0 ||
+          promoConfig.slides.some((s) => s.is_active !== false)) &&
+        activeSections.length <= 1 && (
+          <PromoBanner
+            slides={promoConfig.slides}
+            heading={promoConfig.heading}
+            tagline={promoConfig.tagline}
+            description={promoConfig.description}
+            buttonText={promoConfig.button_text}
+            buttonLink={promoConfig.button_link}
+            imageUrl={promoConfig.image_url}
+            isActive={promoConfig.is_active}
+          />
+        )}
 
       {/* 4. Seen On You (Videos / Reels Section) */}
       <SeenOnYouSection videos={videos} />

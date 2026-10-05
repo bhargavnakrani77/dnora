@@ -27,23 +27,28 @@ export function PromoBanner({
   imageUrl = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=2000&q=85",
   isActive = true,
 }: PromoBannerProps) {
-  // Prepare slides list with fallback to top-level props
+  // Prepare slides list with fallback to top-level props, filtering only active slides
   const resolvedSlides: CampaignSlide[] = useMemo(() => {
-    return slides && slides.length > 0
-      ? slides
-      : [
-          {
-            id: "fallback-slide",
-            heading,
-            tagline,
-            description,
-            button_text: buttonText,
-            button_link: buttonLink,
-            media_type: "image",
-            media_url: imageUrl,
-            duration_seconds: 6,
-          },
-        ];
+    const raw =
+      slides && slides.length > 0
+        ? slides
+        : [
+            {
+              id: "fallback-slide",
+              heading,
+              tagline,
+              description,
+              button_text: buttonText,
+              button_link: buttonLink,
+              media_type: "image" as const,
+              media_url: imageUrl || "",
+              duration_seconds: 6,
+              is_active: true,
+            },
+          ];
+
+    // Only include slides that are explicitly active (default true if undefined)
+    return raw.filter((s) => s.is_active !== false);
   }, [slides, heading, tagline, description, buttonText, buttonLink, imageUrl]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -53,11 +58,13 @@ export function PromoBanner({
 
   // Next Slide handler
   const nextSlide = useCallback(() => {
+    if (totalSlides === 0) return;
     setCurrentIndex((prev) => (prev + 1) % totalSlides);
   }, [totalSlides]);
 
   // Previous Slide handler
   const prevSlide = useCallback(() => {
+    if (totalSlides === 0) return;
     setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
   }, [totalSlides]);
 
@@ -75,8 +82,8 @@ export function PromoBanner({
     return () => clearTimeout(timer);
   }, [isActive, currentIndex, isHovered, totalSlides, resolvedSlides, nextSlide]);
 
-  // If explicitly inactive, do not render
-  if (isActive === false) {
+  // If explicitly inactive, or if no active slides exist, do not render
+  if (isActive === false || totalSlides === 0) {
     return null;
   }
 
