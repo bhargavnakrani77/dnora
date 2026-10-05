@@ -95,7 +95,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
   return (
     <div className="flex flex-col justify-between bg-white relative">
       {/* Product Image Frame with Smooth Rounded Edges — scoped with group/image so hover triggers ONLY on image */}
-      <div className="group/image relative aspect-3/4 rounded-xl overflow-hidden bg-white border border-neutral-200/70">
+      <div className="group/image relative aspect-square rounded-xl overflow-hidden bg-white border border-neutral-200/70">
         <Link href={`/product/${product.slug}`} className="block relative w-full h-full">
           {currentDisplayImage ? (
             <Image
@@ -104,7 +104,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               priority={priority}
-              className={`object-contain p-2 sm:p-2.5 transition-all duration-500 group-hover/image:scale-105 ${
+              className={`object-contain p-1 sm:p-1.5 transition-all duration-500 group-hover/image:scale-105 ${
                 hasHoverImage ? "group-hover/image:opacity-0" : ""
               }`}
             />
@@ -120,7 +120,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
               alt={`${product.name} alternate angle`}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-contain p-2 sm:p-2.5 absolute inset-0 opacity-0 transition-all duration-500 group-hover/image:opacity-100 group-hover/image:scale-105"
+              className="object-contain p-1 sm:p-1.5 absolute inset-0 opacity-0 transition-all duration-500 group-hover/image:opacity-100 group-hover/image:scale-105"
             />
           )}
         </Link>
@@ -144,11 +144,10 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
           type="button"
           onClick={handleToggleWishlist}
           aria-label={isFavorited ? "Remove from wishlist" : "Add to wishlist"}
-          className={`absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-xs cursor-pointer ${
-            isFavorited
+          className={`absolute top-2 right-2 sm:top-2.5 sm:right-2.5 z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-xs cursor-pointer ${isFavorited
               ? "bg-rose-50 text-rose-600"
               : "bg-white/90 text-neutral-700 hover:text-black hover:bg-white hover:scale-105 opacity-90 group-hover:opacity-100"
-          }`}
+            }`}
         >
           <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isFavorited ? "fill-current" : ""}`} />
         </button>
@@ -193,11 +192,10 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
                     e.stopPropagation();
                     setSelectedVariantIndex(isSelected ? null : idx);
                   }}
-                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 ${
-                    isSelected
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 ${isSelected
                       ? "ring-2 ring-black ring-offset-1 scale-110 shadow-xs"
                       : "hover:scale-115 opacity-85 hover:opacity-100"
-                  }`}
+                    }`}
                   style={{
                     backgroundColor: hex,
                     boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",

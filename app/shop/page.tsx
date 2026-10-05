@@ -134,12 +134,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             Showing <span className="font-bold text-neutral-900">{products.length}</span> Silhouettes
           </p>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-600">Sort By:</span>
-            <div className="flex items-center gap-1.5 text-xs font-medium">
+          <div className="flex items-center gap-3 overflow-x-auto scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-600 shrink-0">Sort By:</span>
+            <div className="flex items-center gap-1.5 text-xs font-medium shrink-0">
               <Link
                 href="/shop"
-                className={`px-2.5 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                   !sort ? "bg-black text-white font-bold" : "text-neutral-600 hover:text-black bg-neutral-100"
                 }`}
               >
@@ -147,7 +147,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </Link>
               <Link
                 href="/shop?sort=newest"
-                className={`px-2.5 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                   sort === "newest" ? "bg-black text-white font-bold" : "text-neutral-600 hover:text-black bg-neutral-100"
                 }`}
               >
@@ -155,7 +155,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </Link>
               <Link
                 href="/shop?sort=price-asc"
-                className={`px-2.5 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                   sort === "price-asc" ? "bg-black text-white font-bold" : "text-neutral-600 hover:text-black bg-neutral-100"
                 }`}
               >
@@ -163,7 +163,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </Link>
               <Link
                 href="/shop?sort=price-desc"
-                className={`px-2.5 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-colors ${
                   sort === "price-desc" ? "bg-black text-white font-bold" : "text-neutral-600 hover:text-black bg-neutral-100"
                 }`}
               >

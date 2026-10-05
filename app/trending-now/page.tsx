@@ -166,16 +166,18 @@ export default async function TrendingNowPage({ searchParams }: TrendingNowPageP
           </div>
 
           {/* Sort Controls (Category Filter Tabs Completely Removed as Requested) */}
-          <div className="mt-8 pt-6 border-t border-neutral-100 flex items-center justify-between gap-4">
+          <div className="mt-8 pt-6 border-t border-neutral-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
             <p className="text-xs text-neutral-500 font-medium uppercase tracking-wider">
-              Showing <span className="font-bold text-neutral-900 font-mono">{featuredProducts.length}</span> curated silhouettes
+              Showing <span className="font-bold text-neutral-900 font-mono">{featuredProducts.length}</span> {featuredProducts.length === 1 ? "curated silhouette" : "curated silhouettes"}
             </p>
 
             {/* Sort Dropdown */}
-            <div className="flex items-center gap-2 text-xs">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-neutral-500" />
-              <span className="text-neutral-500 font-medium">Sort by:</span>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 text-xs overflow-x-auto scrollbar-none pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="flex items-center gap-1.5 text-neutral-500 font-medium shrink-0">
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Sort by:</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
                 {[
                   { id: "featured", label: "Featured" },
                   { id: "price-asc", label: "Price: Low to High" },
@@ -185,10 +187,10 @@ export default async function TrendingNowPage({ searchParams }: TrendingNowPageP
                   <Link
                     key={s.id}
                     href={`/trending-now?sort=${s.id}`}
-                    className={`px-2.5 py-1 rounded-md text-[11.5px] transition-colors ${
+                    className={`px-3 py-1.5 rounded-full text-[11.5px] font-medium whitespace-nowrap transition-all shrink-0 ${
                       (sort || "featured") === s.id
-                        ? "bg-neutral-200/80 text-neutral-900 font-bold"
-                        : "text-neutral-600 hover:text-black hover:bg-neutral-100"
+                        ? "bg-neutral-950 text-white font-bold shadow-xs"
+                        : "text-neutral-600 hover:text-black bg-neutral-100 hover:bg-neutral-200"
                     }`}
                   >
                     {s.label}
