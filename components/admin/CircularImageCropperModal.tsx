@@ -14,6 +14,7 @@ import {
   Maximize2,
   Minimize2,
 } from "lucide-react";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 interface CircularImageCropperModalProps {
   isOpen: boolean;
@@ -238,25 +239,15 @@ export function CircularImageCropperModal({
         throw new Error("Failed to export image preview. Please try uploading the image directly.");
       }
 
-      // Upload blob to media upload API
-      const formData = new FormData();
-      formData.append("file", blob, `category-crop-${Date.now()}.png`);
-      formData.append("folder", "dnora/categories");
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      // Upload blob directly to Cloudinary
+      const uploadRes = await uploadDirectToCloudinary(blob, {
+        folder: "dnora/categories",
+        resourceType: "image",
       });
 
-      const uploadData = await uploadRes.json();
-      const secureUrl =
-        uploadData.secure_url ||
-        uploadData.url ||
-        uploadData.media?.secure_url ||
-        uploadData.media?.url;
-
+      const secureUrl = uploadRes.secure_url;
       if (!secureUrl) {
-        throw new Error(uploadData.error || "No image URL returned from upload server");
+        throw new Error("No image URL returned from upload server");
       }
 
       onCropComplete(secureUrl);

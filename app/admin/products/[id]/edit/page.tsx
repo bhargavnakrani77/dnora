@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { ProductCategory, ProductColorVariant, ProductImage } from "@/types";
 import { getValidColorHex } from "@/lib/utils";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 const LUXURY_COLOR_PRESETS = [
   { name: "Noir Black", hex: "#111111" },
@@ -260,23 +261,18 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
     setErrorMsg(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/products");
-
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/products",
+        resourceType: "image",
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.secure_url) {
-        throw new Error(json.error || "Failed to upload image");
+      if (!res.secure_url) {
+        throw new Error("Failed to upload image");
       }
 
       const newImage: ProductImage = {
-        secure_url: json.secure_url,
-        cloudinary_public_id: json.public_id || `img_${Date.now()}`,
+        secure_url: res.secure_url,
+        cloudinary_public_id: res.public_id || `img_${Date.now()}`,
         alt_text: `${name || "DNORA"} View ${slot + 1}`,
         sort_order: slot + 1,
       };
@@ -372,23 +368,18 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
     setErrorMsg(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/products");
-
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/products",
+        resourceType: "image",
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.secure_url) {
-        throw new Error(json.error || "Failed to upload variant image");
+      if (!res.secure_url) {
+        throw new Error("Failed to upload variant image");
       }
 
       const newImg: ProductImage = {
-        secure_url: json.secure_url,
-        cloudinary_public_id: json.public_id || `var_${Date.now()}`,
+        secure_url: res.secure_url,
+        cloudinary_public_id: res.public_id || `var_${Date.now()}`,
         alt_text: `${name || "DNORA"} - Variant Image`,
         sort_order: 1,
       };

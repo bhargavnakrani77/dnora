@@ -25,6 +25,7 @@ import {
   Info,
 } from "lucide-react";
 import { ProductCategory } from "@/types";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function CategoryBannerPage() {
   const params = useParams();
@@ -120,23 +121,12 @@ export default function CategoryBannerPage() {
     else setUploadingMobile(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/categories/banners");
-      formData.append("resource_type", isVideo ? "video" : "image");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/categories/banners",
+        resourceType: isVideo ? "video" : "image",
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Banner upload failed");
-      }
-
-      const data = await res.json();
-      const url = data.secure_url || data.url || data.media?.secure_url;
+      const url = res.secure_url;
       if (!url) throw new Error("No URL returned from upload server");
 
       if (isVideo) setBannerMediaType("video");

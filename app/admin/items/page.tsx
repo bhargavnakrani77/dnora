@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Product, ProductCategory } from "@/types";
 import { formatPrice, slugify } from "@/lib/utils";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function AdminAllItemsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -171,21 +172,16 @@ export default function AdminAllItemsPage() {
 
     setUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/products");
-
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/products",
+        resourceType: "image",
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Upload failed");
+      const url = res.secure_url;
+      if (!url) {
+        throw new Error("Upload failed");
       }
 
-      const url = data.secure_url || data.url;
       setNewProdImages((prev) => [
         ...prev,
         {

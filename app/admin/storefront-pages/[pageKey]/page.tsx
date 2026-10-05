@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Product, StorefrontPageConfig } from "@/types";
 import { formatPrice } from "@/lib/utils";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 interface PageProps {
   params: Promise<{ pageKey: string }>;
@@ -158,21 +159,16 @@ export default function AdminStorefrontPageEditor({ params }: PageProps) {
     setErrorMsg(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/storefront-pages");
-
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/storefront-pages",
+        resourceType: "image",
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.secure_url) {
-        throw new Error(json.error || "Failed to upload image");
+      if (!res.secure_url) {
+        throw new Error("Failed to upload image");
       }
 
-      setBannerImageUrl(json.secure_url);
+      setBannerImageUrl(res.secure_url);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Upload failed");
     } finally {

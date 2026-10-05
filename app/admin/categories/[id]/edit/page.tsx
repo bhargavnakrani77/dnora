@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { CircularImageCropperModal } from "@/components/admin/CircularImageCropperModal";
 import { ProductCategory } from "@/types";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function EditCategoryPage() {
   const params = useParams();
@@ -90,21 +91,12 @@ export default function EditCategoryPage() {
 
     setUploadingImage(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/categories");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/categories",
+        resourceType: "image",
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Upload failed");
-      }
-      const data = await res.json();
-      const newUrl = data.secure_url || data.url || data.media?.secure_url;
+      const newUrl = res.secure_url;
       if (!newUrl) throw new Error("No image URL returned from upload server");
 
       setImageUrl(newUrl);

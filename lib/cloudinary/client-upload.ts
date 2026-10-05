@@ -17,12 +17,13 @@ export interface ClientUploadResult {
  * and execution timeouts by uploading directly to Cloudinary's global CDN API.
  */
 export async function uploadDirectToCloudinary(
-  file: File,
+  file: File | Blob,
   options: ClientUploadOptions = {}
 ): Promise<ClientUploadResult> {
   const folder = options.folder || "dnora/seenonyou";
   const resourceType =
-    options.resourceType || (file.type.startsWith("video") ? "video" : "image");
+    options.resourceType || (file.type && file.type.startsWith("video") ? "video" : "image");
+  const fileName = file instanceof File ? file.name : `asset-${Date.now()}.png`;
 
   // Step 1: Request signed upload token from our lightweight server endpoint (~100 bytes)
   try {
@@ -42,7 +43,7 @@ export async function uploadDirectToCloudinary(
           xhr.open("POST", endpoint);
 
           const fd = new FormData();
-          fd.append("file", file);
+          fd.append("file", file, fileName);
           fd.append("api_key", signData.apiKey);
           fd.append("timestamp", String(signData.timestamp));
           fd.append("signature", signData.signature);
@@ -96,7 +97,7 @@ export async function uploadDirectToCloudinary(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", file, fileName);
     fd.append("folder", folder);
     fd.append("resource_type", resourceType);
 

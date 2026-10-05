@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { HeroBanner } from "@/types";
 import { DestinationLinkSelect } from "@/components/admin/DestinationLinkSelect";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function AdminHeroesPage() {
   const [banners, setBanners] = useState<HeroBanner[]>([]);
@@ -162,46 +163,39 @@ export default function AdminHeroesPage() {
 
     setUploadingField(targetField);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/herobanner");
-      formData.append("resource_type", file.type.startsWith("video") ? "video" : "image");
-
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
+      const isVideo = file.type.startsWith("video");
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/herobanner",
+        resourceType: isVideo ? "video" : "image",
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const url = data.media?.secure_url;
-        if (url) {
-          if (targetField === "desktop") {
-            setFormMediaUrl(url);
-            if (file.type.startsWith("video")) {
-              setFormMediaType("video");
-            } else {
-              setFormMediaType("image");
-            }
-          } else if (targetField === "tablet") {
-            setFormTabletMediaUrl(url);
-            if (file.type.startsWith("video")) {
-              setFormMediaType("video");
-            }
-          } else if (targetField === "mobile") {
-            setFormMobileMediaUrl(url);
-            if (file.type.startsWith("video")) {
-              setFormMediaType("video");
-            }
+      const url = res.secure_url;
+      if (url) {
+        if (targetField === "desktop") {
+          setFormMediaUrl(url);
+          if (isVideo) {
+            setFormMediaType("video");
+          } else {
+            setFormMediaType("image");
           }
-          showStatus("success", `${targetField.toUpperCase()} media uploaded successfully!`);
+        } else if (targetField === "tablet") {
+          setFormTabletMediaUrl(url);
+          if (isVideo) {
+            setFormMediaType("video");
+          }
+        } else if (targetField === "mobile") {
+          setFormMobileMediaUrl(url);
+          if (isVideo) {
+            setFormMediaType("video");
+          }
         }
+        showStatus("success", `${targetField.toUpperCase()} media uploaded successfully!`);
       } else {
-        const data = await res.json();
-        showStatus("error", data.error || "Upload failed");
+        showStatus("error", "No media URL returned");
       }
-    } catch {
-      showStatus("error", "Error uploading media file to server");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error uploading media file";
+      showStatus("error", msg);
     } finally {
       setUploadingField(null);
     }
