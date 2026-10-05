@@ -898,14 +898,14 @@ export default function AdminNewProductPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Slot 0: Main Image */}
-                <div className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden group">
+                <div className={`p-4 rounded-2xl border border-neutral-200 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden group ${images[0] ? "bg-white" : "bg-neutral-50/50"}`}>
                   {images[0] ? (
                     <>
                       <Image
                         src={images[0].secure_url}
                         alt="Main view"
                         fill
-                        className="object-cover"
+                        className="object-contain p-2"
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
@@ -953,14 +953,14 @@ export default function AdminNewProductPage() {
                 </div>
 
                 {/* Slot 1: Hover Image */}
-                <div className="p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden group">
+                <div className={`p-4 rounded-2xl border border-neutral-200 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden group ${images[1] ? "bg-white" : "bg-neutral-50/50"}`}>
                   {images[1] ? (
                     <>
                       <Image
                         src={images[1].secure_url}
                         alt="Hover view"
                         fill
-                        className="object-cover"
+                        className="object-contain p-2"
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button

@@ -133,13 +133,13 @@ export function CartDrawer() {
                 const imageUrl = product.images?.[0]?.secure_url || "";
                 return (
                   <div key={product.id} className="flex gap-4 pb-6 border-b border-neutral-100 last:border-0">
-                    <div className="relative w-20 h-24 bg-neutral-100 rounded-xs overflow-hidden shrink-0 border border-neutral-200">
+                    <div className="relative w-20 h-24 bg-white rounded-xs overflow-hidden shrink-0 border border-neutral-200">
                       {imageUrl && (
                         <Image
                           src={imageUrl}
                           alt={product.name}
                           fill
-                          className="object-cover"
+                          className="object-contain p-1"
                           sizes="80px"
                         />
                       )}

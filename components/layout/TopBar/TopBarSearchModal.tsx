@@ -118,13 +118,13 @@ export function TopBarSearchModal({
                         onClick={onClose}
                         className="group block space-y-2"
                       >
-                        <div className="relative aspect-3/4 bg-neutral-100 rounded-xs overflow-hidden border border-neutral-200">
+                        <div className="relative aspect-3/4 bg-white rounded-xs overflow-hidden border border-neutral-200">
                           {img && (
                             <Image
                               src={img}
                               alt={product.name}
                               fill
-                              className="object-cover group-hover:scale-105 transition-transform duration-500"
+                              className="object-contain p-1 group-hover:scale-105 transition-transform duration-500"
                               sizes="160px"
                             />
                           )}

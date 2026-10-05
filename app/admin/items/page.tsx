@@ -583,13 +583,13 @@ export default function AdminAllItemsPage() {
                     <tr key={p.id} className="hover:bg-neutral-50/70 transition-colors">
                       {/* Image Thumbnail */}
                       <td className="py-3 px-4">
-                        <div className="relative w-12 h-14 rounded-lg bg-neutral-100 overflow-hidden border border-neutral-200 shrink-0">
+                        <div className="relative w-12 h-14 rounded-lg bg-white overflow-hidden border border-neutral-200 shrink-0">
                           {p.images?.[0]?.secure_url ? (
                             <Image
                               src={p.images[0].secure_url}
                               alt={p.name}
                               fill
-                              className="object-cover"
+                              className="object-contain p-0.5"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-neutral-400">
@@ -1001,13 +1001,13 @@ export default function AdminAllItemsPage() {
                     {newProdImages.map((img, idx) => (
                       <div
                         key={idx}
-                        className="relative w-16 h-20 rounded-xl bg-neutral-100 border border-neutral-200 overflow-hidden shrink-0 group"
+                        className="relative w-16 h-20 rounded-xl bg-white border border-neutral-200 overflow-hidden shrink-0 group"
                       >
                         <Image
                           src={img.secure_url}
                           alt="preview"
                           fill
-                          className="object-cover"
+                          className="object-contain p-1"
                         />
                         <button
                           type="button"

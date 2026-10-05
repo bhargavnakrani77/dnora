@@ -842,12 +842,12 @@ export default function CheckoutPage() {
                   <div className="divide-y divide-neutral-100 max-h-64 overflow-y-auto pr-2">
                     {items.map((item, idx) => (
                       <div key={`${item.product.id}-${idx}`} className="py-3 flex items-center gap-3">
-                        <div className="relative w-14 h-16 rounded-md overflow-hidden bg-neutral-100 shrink-0 border border-neutral-200/60">
+                        <div className="relative w-14 h-16 rounded-md overflow-hidden bg-white shrink-0 border border-neutral-200/60">
                           <Image
                             src={item.product.images?.[0]?.secure_url || "/images/placeholder.jpg"}
                             alt={item.product.name}
                             fill
-                            className="object-cover"
+                            className="object-contain p-0.5"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1170,12 +1170,12 @@ export default function CheckoutPage() {
                 {items.map((it, idx) => (
                   <div key={`${it.product.id}-${idx}`} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                      <div className="relative w-10 h-12 rounded-sm overflow-hidden bg-neutral-100 shrink-0">
+                      <div className="relative w-10 h-12 rounded-sm overflow-hidden bg-white shrink-0 border border-neutral-200/60">
                         <Image
                           src={it.product.images?.[0]?.secure_url || "/images/placeholder.jpg"}
                           alt={it.product.name}
                           fill
-                          className="object-cover"
+                          className="object-contain p-0.5"
                         />
                       </div>
                       <div className="min-w-0 truncate">
