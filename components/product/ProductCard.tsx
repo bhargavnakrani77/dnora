@@ -95,7 +95,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
   return (
     <div className="flex flex-col justify-between bg-white relative">
       {/* Product Image Frame with Smooth Rounded Edges — scoped with group/image so hover triggers ONLY on image */}
-      <div className="group/image relative aspect-square rounded-xl overflow-hidden bg-white border border-neutral-200/70">
+      <div className="group/image relative aspect-3/4 rounded-xl overflow-hidden bg-[#FAF8F5] border border-neutral-200/70">
         <Link href={`/product/${product.slug}`} className="block relative w-full h-full">
           {currentDisplayImage ? (
             <Image
@@ -104,7 +104,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               priority={priority}
-              className={`object-contain p-1 sm:p-1.5 transition-all duration-500 group-hover/image:scale-105 ${
+              className={`object-cover transition-opacity duration-500 ${
                 hasHoverImage ? "group-hover/image:opacity-0" : ""
               }`}
             />
@@ -120,7 +120,7 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
               alt={`${product.name} alternate angle`}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-contain p-1 sm:p-1.5 absolute inset-0 opacity-0 transition-all duration-500 group-hover/image:opacity-100 group-hover/image:scale-105"
+              className="object-cover absolute inset-0 opacity-0 transition-all duration-500 group-hover/image:opacity-100 group-hover/image:scale-105"
             />
           )}
         </Link>
