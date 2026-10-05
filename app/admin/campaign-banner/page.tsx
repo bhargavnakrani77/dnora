@@ -30,13 +30,15 @@ import { CampaignSlide, PromoBannerConfig } from "@/lib/data/store";
 export default function AdminCampaignBannerPage() {
   const [slides, setSlides] = useState<CampaignSlide[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [togglingActive, setTogglingActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadingTarget, setUploadingTarget] = useState<"desktop" | "mobile" | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Live preview state
+  // Live preview state & device switch
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
 
   // Slide Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,9 +52,11 @@ export default function AdminCampaignBannerPage() {
   const [formButtonLink, setFormButtonLink] = useState("/shop");
   const [formMediaType, setFormMediaType] = useState<"image" | "video">("image");
   const [formMediaUrl, setFormMediaUrl] = useState("");
+  const [formMobileMediaUrl, setFormMobileMediaUrl] = useState("");
   const [formDuration, setFormDuration] = useState(6);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const desktopFileInputRef = useRef<HTMLInputElement>(null);
+  const mobileFileInputRef = useRef<HTMLInputElement>(null);
 
   const showStatus = (type: "success" | "error", text: string) => {
     setStatusMsg({ type, text });
@@ -104,6 +108,36 @@ export default function AdminCampaignBannerPage() {
     fetchConfig();
   }, []);
 
+  // Instant visibility toggle: persists to server immediately!
+  const handleToggleVisibility = async () => {
+    const nextActive = !isActive;
+    setIsActive(nextActive);
+    setTogglingActive(true);
+    try {
+      const res = await fetch("/api/promo-banner", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: nextActive }),
+      });
+      if (res.ok) {
+        showStatus(
+          "success",
+          nextActive
+            ? "Campaign Banner is now LIVE on Storefront Homepage!"
+            : "Campaign Banner is now HIDDEN from Storefront Homepage!"
+        );
+      } else {
+        setIsActive(!nextActive);
+        showStatus("error", "Failed to update homepage visibility.");
+      }
+    } catch {
+      setIsActive(!nextActive);
+      showStatus("error", "Network error updating homepage visibility.");
+    } finally {
+      setTogglingActive(false);
+    }
+  };
+
   // Open modal for new slide
   const openAddSlideModal = () => {
     setEditingIndex(null);
@@ -114,6 +148,7 @@ export default function AdminCampaignBannerPage() {
     setFormButtonLink("/shop");
     setFormMediaType("image");
     setFormMediaUrl("");
+    setFormMobileMediaUrl("");
     setFormDuration(6);
     setModalOpen(true);
   };
@@ -130,25 +165,36 @@ export default function AdminCampaignBannerPage() {
     setFormButtonLink(s.button_link || "/shop");
     setFormMediaType(s.media_type || "image");
     setFormMediaUrl(s.media_url || "");
+    setFormMobileMediaUrl(s.mobile_media_url || "");
     setFormDuration(s.duration_seconds || 6);
     setModalOpen(true);
   };
 
-  // Upload image or video to Cloudinary
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload image or video for Desktop or Mobile
+  const handleMediaUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: "desktop" | "mobile"
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 50 * 1024 * 1024) {
+      showStatus("error", "File size must be less than 50MB");
+      e.target.value = "";
+      return;
+    }
+
     try {
-      setUploadingMedia(true);
+      setUploadingTarget(target);
       const isVideo = file.type.startsWith("video");
-      if (isVideo) {
+      if (isVideo && target === "desktop") {
         setFormMediaType("video");
       }
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", "dnora/campaign");
+      formData.append("resource_type", isVideo ? "video" : "image");
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -161,26 +207,33 @@ export default function AdminCampaignBannerPage() {
       }
 
       const data = await res.json();
-      if (data.secure_url || data.url) {
-        setFormMediaUrl(data.secure_url || data.url);
-        showStatus("success", `${isVideo ? "Video" : "Image"} uploaded successfully!`);
+      const uploadedUrl = data.secure_url || data.url || data.media?.secure_url;
+      if (uploadedUrl) {
+        if (target === "desktop") {
+          setFormMediaUrl(uploadedUrl);
+        } else {
+          setFormMobileMediaUrl(uploadedUrl);
+        }
+        showStatus("success", `${target === "desktop" ? "Desktop" : "Mobile"} media uploaded successfully!`);
       }
     } catch (err: unknown) {
       console.error(err);
       showStatus("error", err instanceof Error ? err.message : "Media upload failed");
     } finally {
-      setUploadingMedia(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setUploadingTarget(null);
+      e.target.value = "";
     }
   };
 
   // Save current slide from modal into state
   const handleSaveSlideForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formMediaUrl.trim()) {
-      showStatus("error", "Please provide a valid media URL or upload a file.");
+    if (!formMediaUrl.trim() && !formMobileMediaUrl.trim()) {
+      showStatus("error", "Please provide a Desktop or Mobile media URL / image.");
       return;
     }
+
+    const primaryUrl = formMediaUrl.trim() || formMobileMediaUrl.trim();
 
     const newSlide: CampaignSlide = {
       id: editingIndex !== null && slides[editingIndex]?.id ? slides[editingIndex].id : `slide-${Date.now()}`,
@@ -190,16 +243,17 @@ export default function AdminCampaignBannerPage() {
       button_text: formButtonText.trim(),
       button_link: formButtonLink.trim() || "/shop",
       media_type: formMediaType,
-      media_url: formMediaUrl.trim(),
+      media_url: primaryUrl,
+      mobile_media_url: formMobileMediaUrl.trim() || undefined,
       duration_seconds: Number(formDuration) || 6,
     };
 
     if (editingIndex !== null) {
       setSlides((prev) => prev.map((s, idx) => (idx === editingIndex ? newSlide : s)));
-      showStatus("success", "Slide updated in list. Click Save & Publish below to go live.");
+      showStatus("success", "Slide updated. Click 'Save & Publish Changes' below to push live.");
     } else {
       setSlides((prev) => [...prev, newSlide]);
-      showStatus("success", "New slide added. Click Save & Publish below to go live.");
+      showStatus("success", "New slide added. Click 'Save & Publish Changes' below to push live.");
     }
 
     setModalOpen(false);
@@ -335,42 +389,98 @@ export default function AdminCampaignBannerPage() {
 
       {/* Interactive Push Carousel Preview */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-900">
             <Eye className="w-4 h-4 text-neutral-500" />
-            <span>Storefront Live Push Preview</span>
+            <span>Storefront Live Preview</span>
             <span className="text-[11px] font-normal text-neutral-400 font-mono">
               ({slides.length} {slides.length === 1 ? "Slide" : "Slides"})
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-neutral-700">
-              <span>Homepage Visible:</span>
-              <div
-                onClick={() => setIsActive(!isActive)}
-                className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${
-                  isActive ? "bg-black" : "bg-neutral-300"
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Laptop vs Mobile Preview Mode Switcher */}
+            <div className="inline-flex rounded-xl bg-neutral-100 p-0.5 border border-neutral-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setPreviewMode("desktop")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  previewMode === "desktop"
+                    ? "bg-white text-black shadow-xs"
+                    : "text-neutral-500 hover:text-black"
                 }`}
               >
+                💻 Laptop / Desktop View
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMode("mobile")}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  previewMode === "mobile"
+                    ? "bg-white text-black shadow-xs"
+                    : "text-neutral-500 hover:text-black"
+                }`}
+              >
+                📱 Mobile View
+              </button>
+            </div>
+
+            {/* Instant Toggle: Homepage Visible */}
+            <div className="flex items-center gap-2 bg-neutral-50 px-3 py-1.5 rounded-xl border border-neutral-200">
+              <span className="text-xs font-semibold text-neutral-700">Homepage Status:</span>
+              <button
+                type="button"
+                disabled={togglingActive}
+                onClick={handleToggleVisibility}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase transition cursor-pointer ${
+                  isActive
+                    ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
+                    : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 border border-neutral-300"
+                }`}
+                title="Click to toggle banner visible/hidden immediately"
+              >
                 <div
-                  className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-transform ${
-                    isActive ? "left-4.5" : "left-0.5"
-                  }`}
+                  className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-600 animate-pulse" : "bg-neutral-500"}`}
                 />
-              </div>
-            </label>
+                <span>{isActive ? "Visible (Live)" : "Hidden (Draft)"}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="relative w-full min-h-[360px] sm:min-h-[420px] rounded-2xl overflow-hidden shadow-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center">
+        {/* Live Preview Container (Responsive switch between Desktop and Mobile) */}
+        <div
+          className={`relative transition-all duration-300 bg-neutral-900 border border-neutral-200 flex items-center justify-center ${
+            previewMode === "mobile"
+              ? "w-[340px] max-w-full mx-auto min-h-[520px] rounded-3xl overflow-hidden shadow-2xl border-4 border-neutral-800"
+              : "w-full min-h-[360px] sm:min-h-[440px] md:min-h-[500px] rounded-2xl overflow-hidden shadow-xl"
+          }`}
+        >
+          {/* Status overlay if banner is hidden */}
+          {!isActive && (
+            <div className="absolute top-3 left-3 z-30 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/80 text-amber-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md border border-amber-400/40">
+              <span>○ Banner Hidden from Visitors</span>
+            </div>
+          )}
+
+          {/* Device badge indicator in preview */}
+          <div className="absolute top-3 right-3 z-30 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-mono tracking-wider backdrop-blur-md">
+            <span>{previewMode === "desktop" ? "🖥️ Desktop View" : "📱 Mobile View"}</span>
+          </div>
+
           {/* Background Video or Photo */}
-          {activeSlide?.media_url && (
+          {(previewMode === "mobile" && activeSlide?.mobile_media_url
+            ? activeSlide.mobile_media_url
+            : activeSlide?.media_url) && (
             <div className="absolute inset-0 z-0">
               {activeSlide.media_type === "video" ? (
                 <video
-                  key={activeSlide.media_url}
-                  src={activeSlide.media_url}
+                  key={`${previewMode}-${previewMode === "mobile" && activeSlide?.mobile_media_url ? activeSlide.mobile_media_url : activeSlide.media_url}`}
+                  src={
+                    previewMode === "mobile" && activeSlide?.mobile_media_url
+                      ? activeSlide.mobile_media_url
+                      : activeSlide.media_url
+                  }
                   autoPlay
                   loop
                   muted
@@ -378,12 +488,15 @@ export default function AdminCampaignBannerPage() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <Image
-                  src={activeSlide.media_url}
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    previewMode === "mobile" && activeSlide?.mobile_media_url
+                      ? activeSlide.mobile_media_url
+                      : activeSlide.media_url
+                  }
                   alt={activeSlide.heading || "Preview"}
-                  fill
-                  className="object-cover object-center"
-                  unoptimized
+                  className="w-full h-full object-cover object-center select-none"
                 />
               )}
             </div>
@@ -493,29 +606,59 @@ export default function AdminCampaignBannerPage() {
               }`}
             >
               <div className="flex items-center gap-4">
-                {/* Media Thumbnail */}
-                <div className="relative w-24 h-16 rounded-lg overflow-hidden bg-black shrink-0 border border-neutral-300 flex items-center justify-center">
-                  {slide.media_type === "video" ? (
-                    <>
-                      <video
+                {/* Media Thumbnails */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Desktop Thumbnail */}
+                  <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-black shrink-0 border border-neutral-300 flex items-center justify-center" title="Desktop / Laptop Media">
+                    {slide.media_type === "video" ? (
+                      <>
+                        <video
+                          src={slide.media_url}
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover opacity-80"
+                        />
+                        <Film className="w-4 h-4 text-white absolute" />
+                      </>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
                         src={slide.media_url}
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover opacity-80"
+                        alt={slide.heading || "Desktop Slide"}
+                        className="w-full h-full object-cover"
                       />
-                      <Film className="w-5 h-5 text-white absolute" />
-                    </>
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={slide.media_url}
-                      alt={slide.heading || "Slide"}
-                      className="w-full h-full object-cover"
-                    />
+                    )}
+                    <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 rounded bg-black/80 text-[8px] font-bold text-white uppercase">
+                      Desktop
+                    </span>
+                  </div>
+
+                  {/* Mobile Thumbnail if configured */}
+                  {slide.mobile_media_url && (
+                    <div className="relative w-10 h-14 rounded-lg overflow-hidden bg-black shrink-0 border border-neutral-300 flex items-center justify-center" title="Mobile Media">
+                      {slide.media_type === "video" ? (
+                        <>
+                          <video
+                            src={slide.mobile_media_url}
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover opacity-80"
+                          />
+                          <Film className="w-3 h-3 text-white absolute" />
+                        </>
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={slide.mobile_media_url}
+                          alt="Mobile Slide"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 rounded bg-black/80 text-[7px] font-bold text-white uppercase">
+                        Mobile
+                      </span>
+                    </div>
                   )}
-                  <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[9px] font-bold text-white uppercase">
-                    {slide.media_type}
-                  </span>
                 </div>
 
                 {/* Details */}
@@ -640,81 +783,84 @@ export default function AdminCampaignBannerPage() {
             </div>
 
             <form onSubmit={handleSaveSlideForm} className="space-y-4">
-              {/* Media Type & Upload */}
-              <div className="space-y-3 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+              {/* Media Type Switcher */}
+              <div className="flex items-center justify-between bg-neutral-50 p-3 rounded-xl border border-neutral-200">
+                <label className="text-xs font-bold uppercase tracking-wider text-neutral-800">
+                  Media Format
+                </label>
+                <div className="flex items-center bg-white p-0.5 rounded-lg border border-neutral-200 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setFormMediaType("image")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
+                      formMediaType === "image"
+                        ? "bg-black text-white shadow-xs"
+                        : "text-neutral-500 hover:text-black"
+                    }`}
+                  >
+                    <ImageIcon className="w-3 h-3" />
+                    Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormMediaType("video")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
+                      formMediaType === "video"
+                        ? "bg-black text-white shadow-xs"
+                        : "text-neutral-500 hover:text-black"
+                    }`}
+                  >
+                    <Film className="w-3 h-3" />
+                    Video
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. Desktop / Laptop Media */}
+              <div className="space-y-2 bg-neutral-50/70 p-3.5 rounded-xl border border-neutral-200">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-700">
-                    Background Media Type &amp; Source
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
+                    <span>🖥️ Desktop / Laptop Media *</span>
+                    <span className="text-[10px] font-normal text-neutral-500 normal-case">(Widescreen 16:9 / 21:9)</span>
                   </label>
-                  <div className="flex items-center bg-white p-0.5 rounded-lg border border-neutral-200 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => setFormMediaType("image")}
-                      className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md transition ${
-                        formMediaType === "image"
-                          ? "bg-black text-white shadow-xs"
-                          : "text-neutral-500 hover:text-black"
-                      }`}
-                    >
-                      <ImageIcon className="w-3 h-3" />
-                      Image
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormMediaType("video")}
-                      className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-md transition ${
-                        formMediaType === "video"
-                          ? "bg-black text-white shadow-xs"
-                          : "text-neutral-500 hover:text-black"
-                      }`}
-                    >
-                      <Film className="w-3 h-3" />
-                      Video
-                    </button>
-                  </div>
                 </div>
 
                 <div className="flex gap-2">
                   <input
-                    type="url"
-                    required
+                    type="text"
+                    required={!formMobileMediaUrl}
                     value={formMediaUrl}
                     onChange={(e) => setFormMediaUrl(e.target.value)}
-                    placeholder={`https://... (${formMediaType === "video" ? "MP4 video URL" : "Image URL"})`}
+                    placeholder={`https://... or upload (${formMediaType === "video" ? "MP4 video" : "Landscape image"})`}
                     className="flex-1 px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:border-black"
                   />
                   <input
                     type="file"
-                    ref={fileInputRef}
-                    accept={formMediaType === "video" ? "video/mp4,video/webm" : "image/*"}
-                    onChange={handleMediaUpload}
+                    ref={desktopFileInputRef}
+                    accept={formMediaType === "video" ? "video/*,.mp4,.webm,.mov" : "image/*,.jpg,.jpeg,.png,.webp,.avif"}
+                    onChange={(e) => handleMediaUpload(e, "desktop")}
                     className="hidden"
                   />
                   <button
                     type="button"
-                    disabled={uploadingMedia}
-                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingTarget !== null}
+                    onClick={() => desktopFileInputRef.current?.click()}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-neutral-900 hover:bg-black text-white rounded-lg transition cursor-pointer disabled:opacity-50 shrink-0"
                   >
-                    {uploadingMedia ? (
+                    {uploadingTarget === "desktop" ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : formMediaType === "video" ? (
-                      <Film className="w-3.5 h-3.5" />
                     ) : (
                       <Upload className="w-3.5 h-3.5" />
                     )}
-                    <span>{uploadingMedia ? "Uploading..." : "Upload File"}</span>
+                    <span>{uploadingTarget === "desktop" ? "Uploading..." : "Upload"}</span>
                   </button>
                 </div>
 
-                {/* Media Preview inside modal */}
                 {formMediaUrl && (
-                  <div className="relative w-full h-36 rounded-lg overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center">
+                  <div className="relative w-full h-28 rounded-lg overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center">
                     {formMediaType === "video" ? (
                       <video
                         src={formMediaUrl}
-                        autoPlay
-                        loop
                         muted
                         playsInline
                         className="w-full h-full object-cover"
@@ -723,12 +869,78 @@ export default function AdminCampaignBannerPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={formMediaUrl}
-                        alt="Preview"
+                        alt="Desktop Preview"
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <span className="absolute bottom-2 left-2 text-[10px] text-white font-mono bg-black/70 px-2 py-0.5 rounded shadow">
-                      Previewing {formMediaType} (Natural Colors)
+                    <span className="absolute bottom-1.5 left-2 text-[9px] text-white font-mono bg-black/75 px-1.5 py-0.5 rounded">
+                      Desktop / Laptop Media
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Mobile Media (Optional) */}
+              <div className="space-y-2 bg-neutral-50/70 p-3.5 rounded-xl border border-neutral-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
+                    <span>📱 Mobile Media (Optional)</span>
+                    <span className="text-[10px] font-normal text-neutral-500 normal-case">(Vertical 9:16 or 3:4)</span>
+                  </label>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formMobileMediaUrl}
+                    onChange={(e) => setFormMobileMediaUrl(e.target.value)}
+                    placeholder="https://... or upload vertical image/video for phones"
+                    className="flex-1 px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:border-black"
+                  />
+                  <input
+                    type="file"
+                    ref={mobileFileInputRef}
+                    accept={formMediaType === "video" ? "video/*,.mp4,.webm,.mov" : "image/*,.jpg,.jpeg,.png,.webp,.avif"}
+                    onChange={(e) => handleMediaUpload(e, "mobile")}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={uploadingTarget !== null}
+                    onClick={() => mobileFileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-neutral-800 hover:bg-black text-white rounded-lg transition cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {uploadingTarget === "mobile" ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{uploadingTarget === "mobile" ? "Uploading..." : "Upload Mobile"}</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-neutral-500">
+                  Used specifically for mobile devices. If left empty, desktop media will automatically be used.
+                </p>
+
+                {formMobileMediaUrl && (
+                  <div className="relative w-28 h-36 rounded-lg overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center">
+                    {formMediaType === "video" ? (
+                      <video
+                        src={formMobileMediaUrl}
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={formMobileMediaUrl}
+                        alt="Mobile Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <span className="absolute bottom-1 left-1 text-[8px] text-white font-mono bg-black/75 px-1 py-0.5 rounded">
+                      Mobile
                     </span>
                   </div>
                 )}

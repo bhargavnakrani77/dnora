@@ -101,57 +101,70 @@ export function PromoBanner({
   return (
     <section
       aria-label="Campaign Banner Carousel"
-      className="relative w-full bg-neutral-100/60 overflow-hidden my-4 sm:my-6 md:my-8 group select-none border-y border-neutral-200/50"
+      className="relative w-full max-w-[1820px] 2xl:max-w-[1920px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 my-4 sm:my-6 md:my-8 group select-none"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Horizontal Push Track: Slides push sideways smoothly */}
-      <div
-        className="flex w-full transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)]"
-        style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-      >
-        {resolvedSlides.map((slide, idx) => {
-          const hasHeading = Boolean(slide.heading && slide.heading.trim());
-          const hasTagline = Boolean(slide.tagline && slide.tagline.trim());
-          const hasDesc = Boolean(slide.description && slide.description.trim());
-          const hasBtn = Boolean(slide.button_text && slide.button_text.trim());
-          const hasAnyText = hasHeading || hasTagline || hasDesc || hasBtn;
-          const destinationLink = slide.button_link || "/shop";
+      <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden bg-neutral-100/80 border border-neutral-200/60 shadow-xs">
+        {/* Horizontal Push Track: Slides push sideways smoothly */}
+        <div
+          className="flex w-full transition-transform duration-700 ease-[cubic-bezier(0.25,1,0.5,1)]"
+          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        >
+          {resolvedSlides.map((slide, idx) => {
+            const hasHeading = Boolean(slide.heading && slide.heading.trim());
+            const hasTagline = Boolean(slide.tagline && slide.tagline.trim());
+            const hasDesc = Boolean(slide.description && slide.description.trim());
+            const hasBtn = Boolean(slide.button_text && slide.button_text.trim());
+            const hasAnyText = hasHeading || hasTagline || hasDesc || hasBtn;
+            const destinationLink = slide.button_link || "/shop";
 
-          const slideContent = (
-            <div
-              key={slide.id || idx}
-              className="min-w-full w-full relative min-h-[380px] sm:min-h-[460px] md:min-h-[520px] lg:min-h-[580px] flex items-center justify-center shrink-0 overflow-hidden"
-            >
-              {/* Background Media: Rendered in its original true colors without darkening black filters */}
-              <div className="absolute inset-0 z-0">
-                {slide.media_type === "video" ? (
-                  <video
-                    src={slide.media_url}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Image
-                    src={slide.media_url}
-                    alt={slide.heading || "DNORA Campaign Banner"}
-                    fill
-                    sizes="100vw"
-                    priority={idx === 0}
-                    className="w-full h-full object-cover object-center"
-                  />
-                )}
+            const slideContent = (
+              <div
+                key={slide.id || idx}
+                className="min-w-full w-full relative min-h-[420px] sm:min-h-[480px] md:h-[540px] lg:h-[620px] xl:h-[680px] flex items-center justify-center shrink-0 overflow-hidden"
+              >
+                {/* Background Media: Responsive art-direction for desktop/laptop and mobile */}
+                <div className="absolute inset-0 z-0">
+                  {slide.media_type === "video" ? (
+                    <video
+                      src={slide.media_url || slide.mobile_media_url}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    >
+                      {slide.mobile_media_url && (
+                        <source src={slide.mobile_media_url} media="(max-width: 767px)" />
+                      )}
+                      <source src={slide.media_url || slide.mobile_media_url} media="(min-width: 768px)" />
+                      <source src={slide.media_url || slide.mobile_media_url} />
+                    </video>
+                  ) : (
+                    <picture className="block relative w-full h-full">
+                      {slide.mobile_media_url && (
+                        <source media="(max-width: 767px)" srcSet={slide.mobile_media_url} />
+                      )}
+                      <source media="(min-width: 768px)" srcSet={slide.media_url || slide.mobile_media_url} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={slide.media_url || slide.mobile_media_url}
+                        alt={slide.heading || "DNORA Campaign Banner"}
+                        loading={idx === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                        className="w-full h-full object-cover object-center select-none"
+                      />
+                    </picture>
+                  )}
 
-                {/* Only add a very subtle soft contrast veil if text overlay is present */}
-                {hasAnyText && (
-                  <div className="absolute inset-0 bg-black/20 pointer-events-none" />
-                )}
-              </div>
+                  {/* Only add a very subtle soft contrast veil if text overlay is present */}
+                  {hasAnyText && (
+                    <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+                  )}
+                </div>
 
               {/* Content Shell with Luxury Typography - Rendered ONLY if text was provided */}
               {hasAnyText && (
@@ -260,6 +273,7 @@ export function PromoBanner({
           ))}
         </div>
       )}
+      </div>
     </section>
   );
 }

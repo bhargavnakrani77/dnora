@@ -110,7 +110,7 @@ export default async function HomePage() {
           return (
             <React.Fragment key={sec.id}>
               {/* Promo banner placed seamlessly after the first section */}
-              {idx === 1 && (
+              {promoConfig.is_active && idx === 1 && (
                 <PromoBanner
                   slides={promoConfig.slides}
                   heading={promoConfig.heading}
@@ -138,8 +138,8 @@ export default async function HomePage() {
         );
       })()}
 
-      {/* If only 0 or 1 section was rendered, ensure PromoBanner still displays */}
-      {activeSections.length <= 1 && (
+      {/* If only 0 or 1 section was rendered, ensure PromoBanner still displays if active */}
+      {promoConfig.is_active && activeSections.length <= 1 && (
         <PromoBanner
           slides={promoConfig.slides}
           heading={promoConfig.heading}

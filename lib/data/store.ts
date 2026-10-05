@@ -2854,7 +2854,9 @@ export interface CampaignSlide {
   button_link: string;
   media_type: "image" | "video";
   media_url: string;
+  mobile_media_url?: string;
   duration_seconds?: number;
+  is_active?: boolean;
 }
 
 export interface PromoBannerConfig {

@@ -49,7 +49,10 @@ export type MediaFolder =
   | "dnora/cat"
   | "dnora/categories"
   | "dnora/reviews"
-  | "dnora/customer-videos";
+  | "dnora/customer-videos"
+  | "dnora/seenonyou"
+  | "dnora/seenonyou/thumbs"
+  | (string & {});
 
 /**
  * Converts any long, bloated Cloudinary URL into a concise, professional CDN URL.
@@ -128,11 +131,18 @@ export async function uploadMedia(
   const shortPublicId = generateShortPublicId(fileName);
 
   return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
+    // For video uploads, use upload_chunked_stream with 6MB chunks to reliably support larger video files up to 100MB
+    const uploaderMethod =
+      resourceType === "video" && typeof cloudinary.uploader.upload_chunked_stream === "function"
+        ? cloudinary.uploader.upload_chunked_stream.bind(cloudinary.uploader)
+        : cloudinary.uploader.upload_stream.bind(cloudinary.uploader);
+
+    const uploadStream = uploaderMethod(
       {
         folder: cleanFolder,
         public_id: shortPublicId,
         resource_type: resourceType,
+        chunk_size: 6000000,
         // Preserve pristine original resolution and quality
         transformation: undefined,
       },

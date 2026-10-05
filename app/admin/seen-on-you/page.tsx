@@ -129,6 +129,12 @@ export default function AdminSeenOnYouPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 50 * 1024 * 1024) {
+      showStatus("error", "Video file size must be less than 50MB");
+      e.target.value = "";
+      return;
+    }
+
     try {
       setUploadingVideo(true);
       const fd = new FormData();
@@ -139,14 +145,27 @@ export default function AdminSeenOnYouPage() {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       if (res.ok) {
         const data = await res.json();
-        setVideoUrl(data.secure_url || data.url);
+        const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
+        if (!uploadedUrl) {
+          showStatus("error", "No video URL returned by server");
+          return;
+        }
+        setVideoUrl(uploadedUrl);
         showStatus("success", "Video file uploaded successfully!");
       } else {
-        const errData = await res.json();
-        showStatus("error", errData.error || "Video upload failed");
+        let errMessage = "Video upload failed";
+        try {
+          const errData = await res.json();
+          errMessage = errData.error || errData.message || errMessage;
+        } catch {
+          const raw = await res.text().catch(() => "");
+          if (raw) errMessage = raw.slice(0, 120);
+        }
+        showStatus("error", errMessage);
       }
-    } catch {
-      showStatus("error", "Error uploading video file");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error uploading video file";
+      showStatus("error", `Video upload failed: ${msg}`);
     } finally {
       setUploadingVideo(false);
       e.target.value = "";
@@ -156,6 +175,12 @@ export default function AdminSeenOnYouPage() {
   const handleUploadThumb = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showStatus("error", "Thumbnail image must be less than 10MB");
+      e.target.value = "";
+      return;
+    }
 
     try {
       setUploadingThumb(true);
@@ -167,14 +192,27 @@ export default function AdminSeenOnYouPage() {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       if (res.ok) {
         const data = await res.json();
-        setThumbnailUrl(data.secure_url || data.url);
+        const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
+        if (!uploadedUrl) {
+          showStatus("error", "No thumbnail URL returned by server");
+          return;
+        }
+        setThumbnailUrl(uploadedUrl);
         showStatus("success", "Thumbnail image uploaded!");
       } else {
-        const errData = await res.json();
-        showStatus("error", errData.error || "Thumbnail upload failed");
+        let errMessage = "Thumbnail upload failed";
+        try {
+          const errData = await res.json();
+          errMessage = errData.error || errData.message || errMessage;
+        } catch {
+          const raw = await res.text().catch(() => "");
+          if (raw) errMessage = raw.slice(0, 120);
+        }
+        showStatus("error", errMessage);
       }
-    } catch {
-      showStatus("error", "Error uploading thumbnail");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error uploading thumbnail";
+      showStatus("error", `Thumbnail upload failed: ${msg}`);
     } finally {
       setUploadingThumb(false);
       e.target.value = "";
@@ -630,17 +668,17 @@ export default function AdminSeenOnYouPage() {
                   </label>
                   <div className="flex gap-2">
                     <input
-                      type="url"
+                      type="text"
                       required
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://.../video.mp4"
+                      placeholder="https://.../video.mp4 or /uploads/..."
                       className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-black focus:bg-white transition"
                     />
                     <input
                       ref={videoFileInputRef}
                       type="file"
-                      accept="video/mp4,video/webm,video/quicktime"
+                      accept="video/*,.mp4,.webm,.mov,.m4v,.mkv"
                       className="hidden"
                       onChange={handleUploadVideo}
                     />
@@ -659,7 +697,7 @@ export default function AdminSeenOnYouPage() {
                     </button>
                   </div>
                   <p className="text-[10px] text-neutral-400 mt-1">
-                    MP4 or WebM vertical (9:16) video. Max 50MB.
+                    MP4, WebM or MOV vertical (9:16) video. Max 50MB.
                   </p>
                 </div>
 
@@ -670,16 +708,16 @@ export default function AdminSeenOnYouPage() {
                   </label>
                   <div className="flex gap-2">
                     <input
-                      type="url"
+                      type="text"
                       value={thumbnailUrl}
                       onChange={(e) => setThumbnailUrl(e.target.value)}
-                      placeholder="https://.../poster.jpg"
+                      placeholder="https://.../poster.jpg or /uploads/..."
                       className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-black focus:bg-white transition"
                     />
                     <input
                       ref={thumbFileInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.avif"
                       className="hidden"
                       onChange={handleUploadThumb}
                     />

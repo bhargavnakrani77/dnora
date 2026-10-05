@@ -44,3 +44,6 @@ scratch/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local uploads
+/public/uploads/
