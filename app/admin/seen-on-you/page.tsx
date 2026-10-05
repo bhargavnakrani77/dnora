@@ -23,6 +23,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { SeenOnYouVideo, Product } from "@/types";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function AdminSeenOnYouPage() {
   const [videos, setVideos] = useState<SeenOnYouVideo[]>([]);
@@ -143,7 +144,7 @@ export default function AdminSeenOnYouPage() {
     setModalOpen(true);
   };
 
-  // High-performance upload with real-time progress & instant local preview
+  // High-performance upload with real-time progress & direct Cloudinary transfer (bypassing Vercel 4.5MB payload limit)
   const uploadVideoFile = (file: File) => {
     if (!file) return;
 
@@ -164,58 +165,33 @@ export default function AdminSeenOnYouPage() {
     setSelectedFileSize((file.size / (1024 * 1024)).toFixed(1) + " MB");
     setUploadingVideo(true);
     setVideoProgress(10);
-    setVideoProgressText("Starting video upload... 10%");
+    setVideoProgressText("Connecting directly to Cloudinary CDN... 10%");
     setModalStatusMsg(null);
 
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("folder", "dnora/seenonyou");
-    fd.append("resource_type", "video");
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload");
-
-    xhr.upload.onprogress = (evt) => {
-      if (evt.lengthComputable) {
-        const percent = Math.min(95, Math.round((evt.loaded / evt.total) * 100));
+    uploadDirectToCloudinary(file, {
+      folder: "dnora/seenonyou",
+      resourceType: "video",
+      onProgress: (percent) => {
         setVideoProgress(percent);
-        setVideoProgressText(`Uploading video... ${percent}%`);
-      }
-    };
-
-    xhr.onload = () => {
-      setUploadingVideo(false);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
-          if (uploadedUrl) {
-            setVideoUrl(uploadedUrl);
-            setVideoProgress(100);
-            setVideoProgressText("Upload complete & CDN ready!");
-            setModalStatusMsg({ type: "success", text: "Video successfully uploaded and CDN link generated!" });
-          } else {
-            setModalStatusMsg({ type: "error", text: "No video URL returned by server. Please try again." });
-          }
-        } catch {
-          setModalStatusMsg({ type: "error", text: "Failed to parse upload response." });
+        setVideoProgressText(`Uploading directly to CDN... ${percent}%`);
+      },
+    })
+      .then((res) => {
+        if (res.secure_url) {
+          setVideoUrl(res.secure_url);
+          setVideoProgress(100);
+          setVideoProgressText("Upload complete & CDN ready!");
+          setModalStatusMsg({ type: "success", text: "Video successfully uploaded to Cloudinary!" });
+        } else {
+          setModalStatusMsg({ type: "error", text: "No video URL returned by server. Please try again." });
         }
-      } else {
-        let errMessage = "Video upload failed";
-        try {
-          const errData = JSON.parse(xhr.responseText);
-          errMessage = errData.error || errData.message || errMessage;
-        } catch {}
-        setModalStatusMsg({ type: "error", text: errMessage });
-      }
-    };
-
-    xhr.onerror = () => {
-      setUploadingVideo(false);
-      setModalStatusMsg({ type: "error", text: "Network error while uploading video." });
-    };
-
-    xhr.send(fd);
+      })
+      .catch((err: Error) => {
+        setModalStatusMsg({ type: "error", text: err.message || "Video upload failed." });
+      })
+      .finally(() => {
+        setUploadingVideo(false);
+      });
   };
 
   const handleUploadVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,31 +215,17 @@ export default function AdminSeenOnYouPage() {
     try {
       setUploadingThumb(true);
       setModalStatusMsg(null);
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("folder", "dnora/seenonyou/thumbs");
-      fd.append("resource_type", "image");
 
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (res.ok) {
-        const data = await res.json();
-        const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
-        if (!uploadedUrl) {
-          setModalStatusMsg({ type: "error", text: "No thumbnail URL returned by server" });
-          return;
-        }
-        setThumbnailUrl(uploadedUrl);
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/seenonyou/thumbs",
+        resourceType: "image",
+      });
+
+      if (res.secure_url) {
+        setThumbnailUrl(res.secure_url);
         setModalStatusMsg({ type: "success", text: "Poster image uploaded!" });
       } else {
-        let errMessage = "Thumbnail upload failed";
-        try {
-          const errData = await res.json();
-          errMessage = errData.error || errData.message || errMessage;
-        } catch {
-          const raw = await res.text().catch(() => "");
-          if (raw) errMessage = raw.slice(0, 120);
-        }
-        setModalStatusMsg({ type: "error", text: errMessage });
+        setModalStatusMsg({ type: "error", text: "No thumbnail URL returned" });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error uploading thumbnail";

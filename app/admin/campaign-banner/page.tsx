@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { CampaignSlide, PromoBannerConfig } from "@/lib/data/store";
+import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
 
 export default function AdminCampaignBannerPage() {
   const [slides, setSlides] = useState<CampaignSlide[]>([]);
@@ -226,23 +227,12 @@ export default function AdminCampaignBannerPage() {
         setFormMediaType("video");
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("folder", "dnora/campaign");
-      formData.append("resource_type", isVideo ? "video" : "image");
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+      const res = await uploadDirectToCloudinary(file, {
+        folder: "dnora/campaign",
+        resourceType: isVideo ? "video" : "image",
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Upload failed");
-      }
-
-      const data = await res.json();
-      const uploadedUrl = data.secure_url || data.url || data.media?.secure_url;
+      const uploadedUrl = res.secure_url;
       if (uploadedUrl) {
         if (target === "desktop") {
           setFormMediaUrl(uploadedUrl);
