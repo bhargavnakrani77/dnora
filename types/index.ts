@@ -248,6 +248,7 @@ export interface AdminCustomer {
   phone?: string | null;
   avatar_url?: string | null;
   role: UserRole;
+  has_password?: boolean;
   is_blocked: boolean;
   blocked_reason?: string | null;
   blocked_at?: string | null;

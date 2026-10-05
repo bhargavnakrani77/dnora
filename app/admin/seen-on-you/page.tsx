@@ -31,6 +31,13 @@ export default function AdminSeenOnYouPage() {
   const [deleting, setDeleting] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [videoProgressText, setVideoProgressText] = useState("");
+  const [localVideoPreview, setLocalVideoPreview] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [selectedFileSize, setSelectedFileSize] = useState("");
+  const [isDraggingVideo, setIsDraggingVideo] = useState(false);
+  const [modalStatusMsg, setModalStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Modals state
@@ -108,6 +115,12 @@ export default function AdminSeenOnYouPage() {
     setProductSlug("");
     setStatus("active");
     setSortOrder(videos.length + 1);
+    setLocalVideoPreview(null);
+    setSelectedFileName("");
+    setSelectedFileSize("");
+    setVideoProgress(0);
+    setVideoProgressText("");
+    setModalStatusMsg(null);
     setModalOpen(true);
   };
 
@@ -121,55 +134,96 @@ export default function AdminSeenOnYouPage() {
     setProductSlug(v.product_slug || "");
     setStatus(v.status || "active");
     setSortOrder(v.sort_order || 0);
+    setLocalVideoPreview(v.video_url);
+    setSelectedFileName("");
+    setSelectedFileSize("");
+    setVideoProgress(0);
+    setVideoProgressText("");
+    setModalStatusMsg(null);
     setModalOpen(true);
   };
 
-  // Upload handlers
-  const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // High-performance upload with real-time progress & instant local preview
+  const uploadVideoFile = (file: File) => {
     if (!file) return;
 
     if (file.size > 50 * 1024 * 1024) {
-      showStatus("error", "Video file size must be less than 50MB");
-      e.target.value = "";
+      setModalStatusMsg({ type: "error", text: "Video file size must be less than 50MB." });
       return;
     }
 
+    // Instant local blob playback
     try {
-      setUploadingVideo(true);
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("folder", "dnora/seenonyou");
-      fd.append("resource_type", "video");
+      const objUrl = URL.createObjectURL(file);
+      setLocalVideoPreview(objUrl);
+    } catch {
+      // Ignore URL create error
+    }
 
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (res.ok) {
-        const data = await res.json();
-        const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
-        if (!uploadedUrl) {
-          showStatus("error", "No video URL returned by server");
-          return;
+    setSelectedFileName(file.name);
+    setSelectedFileSize((file.size / (1024 * 1024)).toFixed(1) + " MB");
+    setUploadingVideo(true);
+    setVideoProgress(10);
+    setVideoProgressText("Starting video upload... 10%");
+    setModalStatusMsg(null);
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", "dnora/seenonyou");
+    fd.append("resource_type", "video");
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+
+    xhr.upload.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const percent = Math.min(95, Math.round((evt.loaded / evt.total) * 100));
+        setVideoProgress(percent);
+        setVideoProgressText(`Uploading video... ${percent}%`);
+      }
+    };
+
+    xhr.onload = () => {
+      setUploadingVideo(false);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
+          if (uploadedUrl) {
+            setVideoUrl(uploadedUrl);
+            setVideoProgress(100);
+            setVideoProgressText("Upload complete & CDN ready!");
+            setModalStatusMsg({ type: "success", text: "Video successfully uploaded and CDN link generated!" });
+          } else {
+            setModalStatusMsg({ type: "error", text: "No video URL returned by server. Please try again." });
+          }
+        } catch {
+          setModalStatusMsg({ type: "error", text: "Failed to parse upload response." });
         }
-        setVideoUrl(uploadedUrl);
-        showStatus("success", "Video file uploaded successfully!");
       } else {
         let errMessage = "Video upload failed";
         try {
-          const errData = await res.json();
+          const errData = JSON.parse(xhr.responseText);
           errMessage = errData.error || errData.message || errMessage;
-        } catch {
-          const raw = await res.text().catch(() => "");
-          if (raw) errMessage = raw.slice(0, 120);
-        }
-        showStatus("error", errMessage);
+        } catch {}
+        setModalStatusMsg({ type: "error", text: errMessage });
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error uploading video file";
-      showStatus("error", `Video upload failed: ${msg}`);
-    } finally {
+    };
+
+    xhr.onerror = () => {
       setUploadingVideo(false);
-      e.target.value = "";
+      setModalStatusMsg({ type: "error", text: "Network error while uploading video." });
+    };
+
+    xhr.send(fd);
+  };
+
+  const handleUploadVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadVideoFile(file);
     }
+    e.target.value = "";
   };
 
   const handleUploadThumb = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,13 +231,14 @@ export default function AdminSeenOnYouPage() {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      showStatus("error", "Thumbnail image must be less than 10MB");
+      setModalStatusMsg({ type: "error", text: "Thumbnail image must be less than 10MB." });
       e.target.value = "";
       return;
     }
 
     try {
       setUploadingThumb(true);
+      setModalStatusMsg(null);
       const fd = new FormData();
       fd.append("file", file);
       fd.append("folder", "dnora/seenonyou/thumbs");
@@ -194,11 +249,11 @@ export default function AdminSeenOnYouPage() {
         const data = await res.json();
         const uploadedUrl = data.secure_url || data.url || data.media?.secure_url || "";
         if (!uploadedUrl) {
-          showStatus("error", "No thumbnail URL returned by server");
+          setModalStatusMsg({ type: "error", text: "No thumbnail URL returned by server" });
           return;
         }
         setThumbnailUrl(uploadedUrl);
-        showStatus("success", "Thumbnail image uploaded!");
+        setModalStatusMsg({ type: "success", text: "Poster image uploaded!" });
       } else {
         let errMessage = "Thumbnail upload failed";
         try {
@@ -208,11 +263,11 @@ export default function AdminSeenOnYouPage() {
           const raw = await res.text().catch(() => "");
           if (raw) errMessage = raw.slice(0, 120);
         }
-        showStatus("error", errMessage);
+        setModalStatusMsg({ type: "error", text: errMessage });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error uploading thumbnail";
-      showStatus("error", `Thumbnail upload failed: ${msg}`);
+      setModalStatusMsg({ type: "error", text: `Thumbnail upload failed: ${msg}` });
     } finally {
       setUploadingThumb(false);
       e.target.value = "";
@@ -221,13 +276,18 @@ export default function AdminSeenOnYouPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (uploadingVideo) {
+      setModalStatusMsg({ type: "error", text: "Please wait for the video upload to finish before saving." });
+      return;
+    }
     if (!videoUrl.trim()) {
-      showStatus("error", "Video URL is required");
+      setModalStatusMsg({ type: "error", text: "Please upload a video or provide a valid Video URL first." });
       return;
     }
 
     try {
       setSaving(true);
+      setModalStatusMsg(null);
       const payload = {
         customer_name: customerName.trim() || "DNORA Patron",
         video_url: videoUrl.trim(),
@@ -251,7 +311,7 @@ export default function AdminSeenOnYouPage() {
           fetchVideos();
         } else {
           const d = await res.json();
-          showStatus("error", d.error || "Failed to update video");
+          setModalStatusMsg({ type: "error", text: d.error || "Failed to update video" });
         }
       } else {
         const res = await fetch("/api/admin/seen-on-you", {
@@ -265,11 +325,11 @@ export default function AdminSeenOnYouPage() {
           fetchVideos();
         } else {
           const d = await res.json();
-          showStatus("error", d.error || "Failed to create video");
+          setModalStatusMsg({ type: "error", text: d.error || "Failed to create video" });
         }
       }
     } catch {
-      showStatus("error", "Error saving video");
+      setModalStatusMsg({ type: "error", text: "Error connecting to server while saving video." });
     } finally {
       setSaving(false);
     }
@@ -583,6 +643,33 @@ export default function AdminSeenOnYouPage() {
             {/* Scrollable Form Body */}
             <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
               <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* Modal Alert Message */}
+                {modalStatusMsg && (
+                  <div
+                    className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between shadow-xs animate-in fade-in duration-150 ${
+                      modalStatusMsg.type === "success"
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {modalStatusMsg.type === "success" ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{modalStatusMsg.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalStatusMsg(null)}
+                      className="text-neutral-400 hover:text-neutral-700 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 {/* 1. Auto-select from active products dropdown */}
                 <div className="p-3.5 bg-neutral-50 border border-neutral-200/80 rounded-xl space-y-2">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-800">
@@ -661,44 +748,134 @@ export default function AdminSeenOnYouPage() {
                   />
                 </div>
 
-                {/* 4. Video URL & Upload */}
+                {/* 4. Drag & Drop Video Upload with Live Preview */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-700 mb-1">
-                    Video File / URL *
+                    Video Reel File (9:16 Vertical) *
                   </label>
-                  <div className="flex gap-2">
+
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    accept="video/*,.mp4,.webm,.mov,.m4v,.mkv"
+                    className="hidden"
+                    onChange={handleUploadVideo}
+                  />
+
+                  {/* Dropzone Area */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingVideo(true);
+                    }}
+                    onDragLeave={() => setIsDraggingVideo(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingVideo(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) uploadVideoFile(file);
+                    }}
+                    className={`relative rounded-2xl border-2 transition-all p-4 flex flex-col items-center justify-center text-center ${
+                      isDraggingVideo
+                        ? "border-black bg-neutral-100/80 scale-[1.01]"
+                        : localVideoPreview || videoUrl
+                        ? "border-neutral-200 bg-neutral-50/50"
+                        : "border-dashed border-neutral-300 bg-neutral-50 hover:bg-neutral-100/60 hover:border-neutral-400"
+                    }`}
+                  >
+                    {localVideoPreview || videoUrl ? (
+                      <div className="w-full flex flex-col sm:flex-row items-center gap-4">
+                        {/* Instant Video Player Preview */}
+                        <div className="relative w-28 h-44 rounded-xl overflow-hidden bg-black shrink-0 border border-neutral-300 shadow-sm flex items-center justify-center">
+                          <video
+                            src={localVideoPreview || videoUrl}
+                            className="w-full h-full object-cover"
+                            controls
+                            playsInline
+                            muted
+                          />
+                        </div>
+
+                        {/* File Details & Action */}
+                        <div className="flex-1 text-left space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                              Ready & Featured
+                            </span>
+                            {selectedFileSize && (
+                              <span className="text-[11px] text-neutral-500 font-medium">
+                                {selectedFileSize}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-semibold text-neutral-900 truncate max-w-xs">
+                            {selectedFileName || (videoUrl.split("/").pop() || "Uploaded Video")}
+                          </p>
+                          <p className="text-[11px] text-neutral-500 leading-tight">
+                            Vertical reel format active. You can preview playback directly above.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => videoFileInputRef.current?.click()}
+                            disabled={uploadingVideo}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-700 text-xs font-medium shadow-2xs transition cursor-pointer"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Replace Video</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => videoFileInputRef.current?.click()}
+                        className="w-full py-6 flex flex-col items-center cursor-pointer group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-neutral-200/80 group-hover:bg-neutral-300/80 group-hover:scale-105 flex items-center justify-center transition-all mb-3 text-neutral-700">
+                          <Video className="w-6 h-6 stroke-[1.8]" />
+                        </div>
+                        <p className="text-xs font-bold text-neutral-900">
+                          Click to browse or drag & drop video here
+                        </p>
+                        <p className="text-[11px] text-neutral-500 mt-1 max-w-xs">
+                          MP4, WebM or MOV up to 50MB. WhatsApp & mobile camera videos supported.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Progress Bar when uploading */}
+                    {uploadingVideo && (
+                      <div className="w-full mt-3 pt-3 border-t border-neutral-200/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-neutral-800">
+                          <span className="flex items-center gap-1.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-700" />
+                            <span>{videoProgressText || "Uploading video to CDN..."}</span>
+                          </span>
+                          <span>{videoProgress}%</span>
+                        </div>
+                        <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-black h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${Math.max(5, videoProgress)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Direct CDN URL (Expandable or editable fallback) */}
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] text-neutral-400 uppercase font-semibold">URL:</span>
                     <input
                       type="text"
-                      required
                       value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://.../video.mp4 or /uploads/..."
-                      className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:outline-none focus:border-black focus:bg-white transition"
+                      onChange={(e) => {
+                        setVideoUrl(e.target.value);
+                        setLocalVideoPreview(null);
+                      }}
+                      placeholder="https://res.cloudinary.com/... or paste video URL"
+                      className="flex-1 px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-[11px] text-neutral-700 focus:outline-none focus:border-black font-mono transition"
                     />
-                    <input
-                      ref={videoFileInputRef}
-                      type="file"
-                      accept="video/*,.mp4,.webm,.mov,.m4v,.mkv"
-                      className="hidden"
-                      onChange={handleUploadVideo}
-                    />
-                    <button
-                      type="button"
-                      disabled={uploadingVideo}
-                      onClick={() => videoFileInputRef.current?.click()}
-                      className="px-3.5 py-2.5 rounded-xl border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition cursor-pointer"
-                    >
-                      {uploadingVideo ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="w-3.5 h-3.5" />
-                      )}
-                      <span>Upload</span>
-                    </button>
                   </div>
-                  <p className="text-[10px] text-neutral-400 mt-1">
-                    MP4, WebM or MOV vertical (9:16) video. Max 50MB.
-                  </p>
                 </div>
 
                 {/* 5. Thumbnail Image */}
@@ -791,11 +968,26 @@ export default function AdminSeenOnYouPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="px-5 py-2.5 rounded-xl bg-black text-white hover:bg-neutral-800 text-xs font-bold tracking-wider uppercase flex items-center gap-2 shadow-md transition cursor-pointer"
+                  disabled={saving || uploadingVideo}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 shadow-md transition ${
+                    uploadingVideo || saving
+                      ? "bg-neutral-400 text-white cursor-not-allowed"
+                      : "bg-black text-white hover:bg-neutral-800 cursor-pointer active:scale-95"
+                  }`}
                 >
-                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{editingVideo ? "Update Video" : "Save & Publish"}</span>
+                  {uploadingVideo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading Video ({videoProgress}%)...</span>
+                    </>
+                  ) : saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>{editingVideo ? "Update Video" : "Save & Publish"}</span>
+                  )}
                 </button>
               </div>
             </form>

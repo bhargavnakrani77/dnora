@@ -4,6 +4,7 @@ import { createUserSession } from "@/lib/auth/user-session";
 import { verifyPassword } from "@/lib/auth/password";
 import { db } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
+import { store } from "@/lib/data/store";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.toLowerCase().trim();
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@dnora.luxury").toLowerCase().trim();
-    const adminPassword = process.env.ADMIN_PASSWORD;
+    const adminPassword = await store.getAdminPassword();
 
     // 1. Dedicated Admin Master Login Check
     if (adminPassword && normalizedEmail === adminEmail) {

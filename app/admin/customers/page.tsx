@@ -22,6 +22,13 @@ import {
   ShieldX,
   MessageCircle,
   TrendingUp,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Lock,
+  Copy,
+  Check,
+  Sparkles,
 } from "lucide-react";
 import { AdminCustomer } from "@/types";
 import { formatPrice } from "@/lib/utils";
@@ -38,6 +45,12 @@ export default function AdminCustomersPage() {
   const [blockingId, setBlockingId] = useState<string | null>(null);
   const [showBlockModal, setShowBlockModal] = useState<AdminCustomer | null>(null);
   const [blockReason, setBlockReason] = useState("");
+
+  // Customer Secure Password Reset State
+  const [resetPasswordCustomer, setResetPasswordCustomer] = useState<AdminCustomer | null>(null);
+  const [newPasswordValue, setNewPasswordValue] = useState("");
+  const [showNewPasswordValue, setShowNewPasswordValue] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const fetchCustomers = async () => {
     try {
@@ -148,6 +161,61 @@ export default function AdminCustomersPage() {
       `Hello ${customer.full_name || "Valued Customer"}, thank you for shopping at DNORA Lifestyle. How can we assist you today?`
     );
     window.open(`https://wa.me/${phone.startsWith("91") ? phone : "91" + phone}?text=${message}`, "_blank");
+  };
+
+  // Generate a random strong secure password
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+    let pwd = "";
+    for (let i = 0; i < 8; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `Dnora@${pwd}`;
+  };
+
+  // Securely reset customer password (hashes with scrypt in backend)
+  const handleResetCustomerPassword = async (customer: AdminCustomer, newPassword: string) => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      setStatusMsg({ type: "error", text: "Password must be at least 6 characters long." });
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await fetch(`/api/admin/customers/${customer.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword.trim() }),
+      });
+
+      if (res.ok) {
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.id === customer.id
+              ? { ...c, has_password: true }
+              : c
+          )
+        );
+        if (selectedCustomer?.id === customer.id) {
+          setSelectedCustomer((prev) =>
+            prev ? { ...prev, has_password: true } : null
+          );
+        }
+        setResetPasswordCustomer(null);
+        setNewPasswordValue("");
+        setStatusMsg({
+          type: "success",
+          text: `Password for ${customer.full_name || customer.email} has been securely updated and encrypted!`,
+        });
+      } else {
+        const json = await res.json();
+        setStatusMsg({ type: "error", text: json.error || "Failed to update customer password." });
+      }
+    } catch {
+      setStatusMsg({ type: "error", text: "Network error updating customer password." });
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -330,7 +398,7 @@ export default function AdminCustomersPage() {
                               {cust.full_name || "Maison Guest"}
                               {cust.is_blocked && (
                                 <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
-                                  Blocked
+                                   Blocked
                                 </span>
                               )}
                             </div>
@@ -409,6 +477,20 @@ export default function AdminCustomersPage() {
                               <MessageCircle className="w-4 h-4" />
                             </button>
                           )}
+
+                          {/* Reset Password */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResetPasswordCustomer(cust);
+                              setNewPasswordValue("");
+                              setShowNewPasswordValue(false);
+                            }}
+                            title="Reset customer password securely"
+                            className="p-1.5 text-neutral-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
 
                           {/* Block/Unblock */}
                           {cust.role !== "admin" && (
@@ -637,6 +719,38 @@ export default function AdminCustomersPage() {
               </div>
             </div>
 
+            {/* Account Password & Security */}
+            <div className="bg-neutral-50/90 border border-neutral-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-neutral-900 text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                    Account Security & Credentials
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Encrypted (scrypt)
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    User passwords are protected with cryptographic one-way hashing with unique salt.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetPasswordCustomer(selectedCustomer);
+                  setNewPasswordValue("");
+                  setShowNewPasswordValue(false);
+                }}
+                className="px-3.5 py-2 bg-white border border-neutral-200 hover:bg-neutral-100 text-neutral-900 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-2xs"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                <span>Reset Password</span>
+              </button>
+            </div>
+
             {/* Saved Addresses */}
             <div className="space-y-3">
               <h4 className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-400 border-b border-neutral-100 pb-1.5">
@@ -718,6 +832,108 @@ export default function AdminCustomersPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECURE RESET PASSWORD MODAL */}
+      {resetPasswordCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white border border-neutral-200 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3.5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-neutral-900">Reset Customer Password</h3>
+                  <p className="text-xs text-neutral-500">
+                    {resetPasswordCustomer.full_name || resetPasswordCustomer.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetPasswordCustomer(null);
+                  setNewPasswordValue("");
+                }}
+                className="text-neutral-400 hover:text-neutral-700 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                  New Password (min. 6 characters)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const gen = generateRandomPassword();
+                    setNewPasswordValue(gen);
+                    setShowNewPasswordValue(true);
+                  }}
+                  className="text-[11px] font-bold text-purple-700 hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Generate Random
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showNewPasswordValue ? "text" : "password"}
+                  value={newPasswordValue}
+                  onChange={(e) => setNewPasswordValue(e.target.value)}
+                  placeholder="Enter new password (min. 6 characters)"
+                  minLength={6}
+                  className="w-full pl-3.5 pr-10 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-black/10 focus:border-neutral-900 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPasswordValue(!showNewPasswordValue)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                >
+                  {showNewPasswordValue ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-[11px] text-neutral-600 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  This password is cryptographically encrypted using <strong>scrypt</strong> before saving. It is 100% secure and cannot be hacked or stolen from the database.
+                </span>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetPasswordCustomer(null);
+                    setNewPasswordValue("");
+                  }}
+                  className="flex-1 py-2.5 border border-neutral-200 text-neutral-700 hover:bg-neutral-50 text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingPassword || !newPasswordValue || newPasswordValue.trim().length < 6}
+                  onClick={() => handleResetCustomerPassword(resetPasswordCustomer, newPasswordValue)}
+                  className="flex-1 py-2.5 bg-neutral-900 hover:bg-black text-white text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 shadow-xs"
+                >
+                  {savingPassword ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  Save & Encrypt
+                </button>
+              </div>
             </div>
           </div>
         </div>

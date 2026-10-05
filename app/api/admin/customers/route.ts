@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { AdminCustomer, CustomerAddress } from "@/types";
 import { verifyAdminSession } from "@/lib/auth/session";
 import { ensureAccountTables } from "@/lib/data/account";
+import { hashPassword } from "@/lib/auth/password";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ interface CustomerDbRow {
   phone: string | null;
   avatar_url: string | null;
   role: "admin" | "customer";
+  has_password: boolean;
   is_blocked: boolean;
   blocked_reason: string | null;
   blocked_at: string | null;
@@ -40,6 +42,7 @@ export async function GET() {
         u.phone,
         u.avatar_url,
         u.role,
+        (u.password_hash IS NOT NULL) AS has_password,
         COALESCE(u.is_blocked, false) AS is_blocked,
         u.blocked_reason,
         u.blocked_at,
@@ -99,6 +102,7 @@ export async function GET() {
       phone: r.phone,
       avatar_url: r.avatar_url,
       role: r.role,
+      has_password: Boolean(r.has_password),
       is_blocked: r.is_blocked || false,
       blocked_reason: r.blocked_reason,
       blocked_at: r.blocked_at,
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { full_name, email, phone, role, address } = body;
+    const { full_name, email, phone, role, password, address } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -142,10 +146,15 @@ export async function POST(req: NextRequest) {
     const userId = crypto.randomUUID();
     const userRole = role === "admin" ? "admin" : "customer";
 
+    let pwdHash: string | null = null;
+    if (password && typeof password === "string" && password.trim()) {
+      pwdHash = await hashPassword(password.trim());
+    }
+
     // 1. Insert into users table
     const insertUserQuery = `
-      INSERT INTO public.users (id, email, full_name, phone, role, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, timezone('utc'::text, now()), timezone('utc'::text, now()))
+      INSERT INTO public.users (id, email, full_name, phone, role, password_hash, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, timezone('utc'::text, now()), timezone('utc'::text, now()))
       RETURNING *;
     `;
     const userResult = await db.query(insertUserQuery, [
@@ -154,6 +163,7 @@ export async function POST(req: NextRequest) {
       full_name || null,
       phone || null,
       userRole,
+      pwdHash,
     ]);
 
     const createdUser = userResult.rows[0];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyAdminSession } from "@/lib/auth/session";
+import { hashPassword } from "@/lib/auth/password";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { full_name, email, phone, role, address } = body;
+    const { full_name, email, phone, role, password, address } = body;
 
     // 1. Update user record
     const updateFields: string[] = [];
@@ -38,6 +39,11 @@ export async function PATCH(
     if (role !== undefined && (role === "admin" || role === "customer")) {
       updateFields.push(`role = $${paramIndex++}`);
       updateValues.push(role);
+    }
+    if (password !== undefined && typeof password === "string" && password.trim()) {
+      const pwdHash = await hashPassword(password.trim());
+      updateFields.push(`password_hash = $${paramIndex++}`);
+      updateValues.push(pwdHash);
     }
 
     updateFields.push(`updated_at = timezone('utc'::text, now())`);

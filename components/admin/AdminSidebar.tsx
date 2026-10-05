@@ -32,6 +32,8 @@ import {
   Flame,
   Clock,
   Percent,
+  Settings,
+  KeyRound,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -216,6 +218,14 @@ const NAV_GROUPS: NavGroupItem[] = [
         badge: "Lookbook",
       },
     ],
+  },
+
+  // 6. Security & Settings
+  {
+    id: "settings",
+    label: "Admin Settings",
+    icon: Settings,
+    href: "/admin/settings",
   },
 ];
 
