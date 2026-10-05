@@ -265,7 +265,7 @@ export default function AdminAllItemsPage() {
 
     const payload = {
       name: newProdName.trim(),
-      slug: slugify(newProdName.trim()),
+      slug: slugify(newProdName.trim()) || undefined,
       short_description: newProdShortDesc.trim() || `Handcrafted Tuscan architectural silhouette in fine Italian leather.`,
       description: newProdDesc.trim() || `Exquisite handcrafted luxury piece created in Florence atelier with vegetable-tanned Italian calfskin, archival edge painting, and bespoke golden hardware.`,
       price: priceNum,

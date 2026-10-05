@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     const newProduct = await store.createProduct({
       ...validated,
       sku: finalSku,
-      slug: validated.slug || slugify(validated.name),
+      slug: validated.slug?.trim() || slugify(validated.name),
       categories: matchedCategory ? [matchedCategory] : [],
       compare_at_price: validated.compare_at_price || null,
       images: finalImages,
@@ -82,6 +82,19 @@ export async function POST(req: NextRequest) {
       const issueMsgs = error.issues.map((i) => `${i.path.join(".") || "field"}: ${i.message}`).join(", ");
       return NextResponse.json(
         { error: `Validation error: ${issueMsgs}`, details: error.issues },
+        { status: 400 }
+      );
+    }
+    const pgError = error as { code?: string; constraint?: string; message?: string };
+    if (pgError?.code === "23505") {
+      if (pgError?.constraint?.includes("sku") || pgError?.message?.includes("sku")) {
+        return NextResponse.json(
+          { error: "A product with this SKU already exists. Please provide a unique SKU." },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "A product with this name or slug already exists. Please choose a slightly different name." },
         { status: 400 }
       );
     }

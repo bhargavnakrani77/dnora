@@ -552,8 +552,80 @@ class DataStore {
     }
   }
 
+  async ensureUniqueProductSlug(baseSlug: string, excludeId?: string): Promise<string> {
+    let cleanBase = slugify(baseSlug || "");
+    if (!cleanBase || cleanBase === "-") {
+      cleanBase = `product-${Date.now().toString(36)}`;
+    }
+
+    let candidate = cleanBase;
+    let counter = 1;
+
+    while (true) {
+      const query = excludeId
+        ? `SELECT id FROM public.products WHERE slug = $1 AND id != $2 LIMIT 1`
+        : `SELECT id FROM public.products WHERE slug = $1 LIMIT 1`;
+      const params = excludeId ? [candidate, excludeId] : [candidate];
+      const res = await db.query(query, params);
+      if (res.rows.length === 0) {
+        return candidate;
+      }
+      candidate = `${cleanBase}-${counter}`;
+      counter++;
+    }
+  }
+
+  async ensureUniqueProductSku(baseSku: string, excludeId?: string): Promise<string> {
+    let cleanSku = (baseSku || "").trim();
+    if (!cleanSku) {
+      cleanSku = `DNR-${Date.now().toString(36).toUpperCase()}`;
+    }
+
+    let candidate = cleanSku;
+    let counter = 1;
+
+    while (true) {
+      const query = excludeId
+        ? `SELECT id FROM public.products WHERE sku = $1 AND id != $2 LIMIT 1`
+        : `SELECT id FROM public.products WHERE sku = $1 LIMIT 1`;
+      const params = excludeId ? [candidate, excludeId] : [candidate];
+      const res = await db.query(query, params);
+      if (res.rows.length === 0) {
+        return candidate;
+      }
+      candidate = `${cleanSku}-${counter}`;
+      counter++;
+    }
+  }
+
+  async ensureUniqueCategorySlug(baseSlug: string, excludeId?: string): Promise<string> {
+    let cleanBase = slugify(baseSlug || "");
+    if (!cleanBase || cleanBase === "-") {
+      cleanBase = `category-${Date.now().toString(36)}`;
+    }
+
+    let candidate = cleanBase;
+    let counter = 1;
+
+    while (true) {
+      const query = excludeId
+        ? `SELECT id FROM public.product_categories WHERE slug = $1 AND id != $2 LIMIT 1`
+        : `SELECT id FROM public.product_categories WHERE slug = $1 LIMIT 1`;
+      const params = excludeId ? [candidate, excludeId] : [candidate];
+      const res = await db.query(query, params);
+      if (res.rows.length === 0) {
+        return candidate;
+      }
+      candidate = `${cleanBase}-${counter}`;
+      counter++;
+    }
+  }
+
   async createProduct(data: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> {
-    const slug = data.slug || slugify(data.name);
+    const rawSlug = data.slug?.trim() ? data.slug : data.name;
+    let slug = await this.ensureUniqueProductSlug(rawSlug);
+    const sku = await this.ensureUniqueProductSku(data.sku);
+
     // Ensure color_variants, cost_price, and detail columns exist
     await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS color_variants JSONB DEFAULT '[]'::jsonb;`).catch(() => {});
     await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT NULL;`).catch(() => {});
@@ -567,35 +639,50 @@ class DataStore {
     await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_heading TEXT DEFAULT NULL;`).catch(() => {});
     await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_mode TEXT DEFAULT 'text';`).catch(() => {});
 
-    const res = await db.query(
-      `INSERT INTO public.products 
-        (name, slug, short_description, description, price, compare_at_price, cost_price, sku, stock, status, color_variants, craftsmanship_heading, craftsmanship_details, craftsmanship_mode, shipping_heading, shipping_customs, shipping_mode, leather_heading, leather_care, leather_mode)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-       RETURNING *`,
-      [
-        data.name,
-        slug,
-        data.short_description || "",
-        data.description || "",
-        data.price,
-        data.compare_at_price || null,
-        data.cost_price !== undefined && data.cost_price !== null ? data.cost_price : null,
-        data.sku,
-        data.stock || 0,
-        data.status || "draft",
-        JSON.stringify(data.color_variants || []),
-        data.craftsmanship_heading || null,
-        data.craftsmanship_details || null,
-        data.craftsmanship_mode || "bullets",
-        data.shipping_heading || null,
-        data.shipping_customs || null,
-        data.shipping_mode || "text",
-        data.leather_heading || null,
-        data.leather_care || null,
-        data.leather_mode || "text",
-      ]
-    );
-    const prod = res.rows[0];
+    let attempts = 0;
+    let res;
+    while (attempts < 5) {
+      try {
+        res = await db.query(
+          `INSERT INTO public.products 
+            (name, slug, short_description, description, price, compare_at_price, cost_price, sku, stock, status, color_variants, craftsmanship_heading, craftsmanship_details, craftsmanship_mode, shipping_heading, shipping_customs, shipping_mode, leather_heading, leather_care, leather_mode)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+           RETURNING *`,
+          [
+            data.name,
+            slug,
+            data.short_description || "",
+            data.description || "",
+            data.price,
+            data.compare_at_price || null,
+            data.cost_price !== undefined && data.cost_price !== null ? data.cost_price : null,
+            sku,
+            data.stock || 0,
+            data.status || "draft",
+            JSON.stringify(data.color_variants || []),
+            data.craftsmanship_heading || null,
+            data.craftsmanship_details || null,
+            data.craftsmanship_mode || "bullets",
+            data.shipping_heading || null,
+            data.shipping_customs || null,
+            data.shipping_mode || "text",
+            data.leather_heading || null,
+            data.leather_care || null,
+            data.leather_mode || "text",
+          ]
+        );
+        break;
+      } catch (err: unknown) {
+        const pgErr = err as { code?: string; constraint?: string; message?: string };
+        if (pgErr?.code === "23505" && (pgErr?.constraint === "products_slug_key" || pgErr?.message?.includes("products_slug_key")) && attempts < 4) {
+          attempts++;
+          slug = await this.ensureUniqueProductSlug(`${slug}-${Date.now().toString(36).slice(-3)}`);
+          continue;
+        }
+        throw err;
+      }
+    }
+    const prod = res!.rows[0];
 
     // Flags
     await db.query(
@@ -646,6 +733,12 @@ class DataStore {
 
     if (updates.name && !updates.slug) {
       updates.slug = slugify(updates.name);
+    }
+    if (updates.slug) {
+      updates.slug = await this.ensureUniqueProductSlug(updates.slug, id);
+    }
+    if (updates.sku && String(updates.sku).trim()) {
+      updates.sku = await this.ensureUniqueProductSku(String(updates.sku).trim(), id);
     }
 
     const prodCols: (keyof Product)[] = [
@@ -877,27 +970,43 @@ class DataStore {
     is_in_collections?: boolean;
   }): Promise<ProductCategory> {
     await this.ensureCategoryColumns();
-    const slug = data.slug?.trim() ? slugify(data.slug) : slugify(data.name);
-    const res = await db.query(
-      `INSERT INTO public.product_categories 
-        (name, slug, description, image_url, banner_image_url, banner_mobile_image_url, banner_heading, banner_subtitle, banner_media_type, is_in_nav, is_in_collections)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING *`,
-      [
-        data.name.trim(),
-        slug,
-        data.description || null,
-        data.image_url || null,
-        data.banner_image_url || null,
-        data.banner_mobile_image_url || null,
-        data.banner_heading || null,
-        data.banner_subtitle || null,
-        data.banner_media_type || "image",
-        data.is_in_nav ?? true,
-        data.is_in_collections ?? true,
-      ]
-    );
-    const cat = res.rows[0];
+    const rawSlug = data.slug?.trim() ? slugify(data.slug) : slugify(data.name);
+    let slug = await this.ensureUniqueCategorySlug(rawSlug);
+    let attempts = 0;
+    let res;
+    while (attempts < 5) {
+      try {
+        res = await db.query(
+          `INSERT INTO public.product_categories 
+            (name, slug, description, image_url, banner_image_url, banner_mobile_image_url, banner_heading, banner_subtitle, banner_media_type, is_in_nav, is_in_collections)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           RETURNING *`,
+          [
+            data.name.trim(),
+            slug,
+            data.description || null,
+            data.image_url || null,
+            data.banner_image_url || null,
+            data.banner_mobile_image_url || null,
+            data.banner_heading || null,
+            data.banner_subtitle || null,
+            data.banner_media_type || "image",
+            data.is_in_nav ?? true,
+            data.is_in_collections ?? true,
+          ]
+        );
+        break;
+      } catch (err: unknown) {
+        const pgErr = err as { code?: string; constraint?: string; message?: string };
+        if (pgErr?.code === "23505" && (pgErr?.constraint?.includes("slug") || pgErr?.message?.includes("slug")) && attempts < 4) {
+          attempts++;
+          slug = await this.ensureUniqueCategorySlug(`${slug}-${Date.now().toString(36).slice(-3)}`);
+          continue;
+        }
+        throw err;
+      }
+    }
+    const cat = res!.rows[0];
     await this.syncNavigationCategories();
     return {
       ...cat,
@@ -938,8 +1047,9 @@ class DataStore {
       params.push(data.name.trim());
     }
     if (data.slug !== undefined) {
+      const uniqueSlug = await this.ensureUniqueCategorySlug(slugify(data.slug), id);
       updates.push(`slug = $${idx++}`);
-      params.push(slugify(data.slug));
+      params.push(uniqueSlug);
     }
     if (data.description !== undefined) {
       updates.push(`description = $${idx++}`);

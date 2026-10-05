@@ -62,6 +62,19 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
+    const pgError = error as { code?: string; constraint?: string; message?: string };
+    if (pgError?.code === "23505") {
+      if (pgError?.constraint?.includes("sku") || pgError?.message?.includes("sku")) {
+        return NextResponse.json(
+          { error: "A product with this SKU already exists. Please provide a unique SKU." },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { error: "A product with this name or slug already exists. Please choose a slightly different name." },
+        { status: 400 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
