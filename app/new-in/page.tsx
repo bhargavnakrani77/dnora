@@ -36,18 +36,26 @@ export default async function NewInPage({ searchParams }: NewInPageProps) {
   // 2. Identify products marked as new arrivals or curated by admin
   let featuredProducts: Product[] = [];
 
+  const newArrivalProducts = allProducts.filter((p) => p.is_new_arrival);
+
   if (pageConfig?.featured_product_ids && pageConfig.featured_product_ids.length > 0) {
     const featuredSet = new Set(pageConfig.featured_product_ids);
-    featuredProducts = allProducts.filter((p) => featuredSet.has(p.id));
+    const explicitlyFeatured = allProducts.filter((p) => featuredSet.has(p.id));
+
+    const seenIds = new Set(explicitlyFeatured.map((p) => p.id));
+    const additionalNewArrivals = newArrivalProducts.filter((p) => !seenIds.has(p.id));
+    featuredProducts = [...explicitlyFeatured, ...additionalNewArrivals];
   } else {
     // Default to is_new_arrival flag
-    featuredProducts = allProducts.filter((p) => p.is_new_arrival);
-    if (featuredProducts.length < 4) {
-      const additional = allProducts
-        .filter((p) => !featuredProducts.some((fp) => fp.id === p.id))
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      featuredProducts = [...featuredProducts, ...additional.slice(0, 12 - featuredProducts.length)];
-    }
+    featuredProducts = newArrivalProducts;
+  }
+
+  if (featuredProducts.length < 4) {
+    const seenIds = new Set(featuredProducts.map((p) => p.id));
+    const additional = allProducts
+      .filter((p) => !seenIds.has(p.id))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    featuredProducts = [...featuredProducts, ...additional.slice(0, 12 - featuredProducts.length)];
   }
 
   // 3. Sort Products
@@ -201,13 +209,13 @@ export default async function NewInPage({ searchParams }: NewInPageProps) {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 xl:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 xl:gap-8 items-stretch">
             {featuredProducts.map((product, idx) => (
               <ProductCard
                 key={product.id}
                 product={product}
                 priority={idx < 4}
-                showBuyNow={true}
+                className="h-full"
               />
             ))}
           </div>

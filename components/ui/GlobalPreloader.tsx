@@ -23,27 +23,40 @@ export function GlobalPreloader() {
       if (alreadySeen) {
         return;
       }
-
-      // Mark as seen immediately so refreshing the page or navigating won't trigger it again
-      sessionStorage.setItem("dnora_intro_shown", "true");
       setShowInitial(true);
-
-      const fadeTimer = setTimeout(() => {
-        setIsFadingOut(true);
-      }, 1250);
-
-      const unmountTimer = setTimeout(() => {
-        setShowInitial(false);
-      }, 1750);
-
-      return () => {
-        clearTimeout(fadeTimer);
-        clearTimeout(unmountTimer);
-      };
     } catch {
       // In case sessionStorage is restricted in incognito/strict mode
     }
-  }, [pathname]);
+  }, []);
+
+  // Timer lifecycle is bound to showInitial so timers re-arm correctly across React StrictMode remounts
+  useEffect(() => {
+    if (!showInitial) return;
+
+    try {
+      sessionStorage.setItem("dnora_intro_shown", "true");
+    } catch {}
+
+    const fadeTimer = setTimeout(() => {
+      setIsFadingOut(true);
+    }, 1250);
+
+    const unmountTimer = setTimeout(() => {
+      setShowInitial(false);
+    }, 1750);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(unmountTimer);
+    };
+  }, [showInitial]);
+
+  const handleDismiss = () => {
+    setIsFadingOut(true);
+    setTimeout(() => {
+      setShowInitial(false);
+    }, 300);
+  };
 
   // Guaranteed zero hydration mismatch: both SSR and initial client pass return null
   if (!mounted || !showInitial) {
@@ -52,7 +65,8 @@ export function GlobalPreloader() {
 
   return (
     <div
-      className={`fixed inset-0 z-[9999] transition-all duration-700 ease-out pointer-events-auto ${
+      onClick={handleDismiss}
+      className={`fixed inset-0 z-[9999] transition-all duration-700 ease-out cursor-pointer ${
         isFadingOut
           ? "opacity-0 pointer-events-none scale-[1.01]"
           : "opacity-100 pointer-events-auto scale-100"

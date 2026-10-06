@@ -36,16 +36,26 @@ export default async function BestSellerPage({ searchParams }: BestSellerPagePro
   // 2. Identify products marked as best sellers or curated by admin
   let featuredProducts: Product[] = [];
 
+  const bestSellerProducts = allProducts.filter((p) => p.is_best_seller);
+
   if (pageConfig?.featured_product_ids && pageConfig.featured_product_ids.length > 0) {
     const featuredSet = new Set(pageConfig.featured_product_ids);
-    featuredProducts = allProducts.filter((p) => featuredSet.has(p.id));
+    const explicitlyFeatured = allProducts.filter((p) => featuredSet.has(p.id));
+
+    // Combine explicitly featured items with all other products flagged as is_best_seller
+    const seenIds = new Set(explicitlyFeatured.map((p) => p.id));
+    const additionalBestSellers = bestSellerProducts.filter((p) => !seenIds.has(p.id));
+    featuredProducts = [...explicitlyFeatured, ...additionalBestSellers];
   } else {
     // Default to is_best_seller flag
-    featuredProducts = allProducts.filter((p) => p.is_best_seller);
-    if (featuredProducts.length < 4) {
-      const additional = allProducts.filter((p) => !featuredProducts.some((fp) => fp.id === p.id));
-      featuredProducts = [...featuredProducts, ...additional.slice(0, 12 - featuredProducts.length)];
-    }
+    featuredProducts = bestSellerProducts;
+  }
+
+  // Ensure boutique catalog always has a rich display matching storefront
+  if (featuredProducts.length < 4) {
+    const seenIds = new Set(featuredProducts.map((p) => p.id));
+    const additional = allProducts.filter((p) => !seenIds.has(p.id));
+    featuredProducts = [...featuredProducts, ...additional.slice(0, 12 - featuredProducts.length)];
   }
 
   // 3. Sort Products
@@ -199,13 +209,13 @@ export default async function BestSellerPage({ searchParams }: BestSellerPagePro
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 xl:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 xl:gap-8 items-stretch">
             {featuredProducts.map((product, idx) => (
               <ProductCard
                 key={product.id}
                 product={product}
                 priority={idx < 4}
-                showBuyNow={true}
+                className="h-full"
               />
             ))}
           </div>

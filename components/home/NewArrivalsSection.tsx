@@ -54,9 +54,9 @@ export function NewArrivalsSection({ products }: NewArrivalsSectionProps) {
             {displayProducts.map((product) => (
               <div
                 key={product.id}
-                className="w-[190px] sm:w-[230px] md:w-[270px] lg:w-[285px] shrink-0 snap-start flex flex-col justify-between"
+                className="w-[190px] sm:w-[230px] md:w-[270px] lg:w-[285px] shrink-0 snap-start h-full flex flex-col justify-between"
               >
-                <ProductCard product={product} />
+                <ProductCard product={product} className="h-full" />
               </div>
             ))}
           </div>

@@ -330,10 +330,10 @@ export default async function CategoryPage({
             </div>
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 items-stretch">
             {products.map((product, idx) => (
-              <div key={product.id} className="flex flex-col justify-between">
-                <ProductCard product={product} priority={idx < 4} />
+              <div key={product.id} className="h-full flex flex-col justify-between">
+                <ProductCard product={product} priority={idx < 4} className="h-full" />
               </div>
             ))}
           </div>

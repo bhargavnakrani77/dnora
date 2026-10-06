@@ -7,12 +7,14 @@
 export interface ImageTransformationOptions {
   width?: number;
   height?: number;
-  crop?: "fill" | "fit" | "limit" | "scale" | "thumb" | "crop";
+  crop?: "fill" | "fit" | "limit" | "scale" | "thumb" | "crop" | "pad";
   gravity?: "auto" | "face" | "center" | "custom";
   quality?: "auto" | "auto:best" | "auto:good" | "auto:eco" | "auto:low" | number;
   format?: "auto" | "webp" | "avif" | "jpg" | "png";
   dpr?: number;
   blur?: number;
+  aspectRatio?: string;
+  background?: string;
 }
 
 const DEFAULT_CLOUD_NAME =
@@ -90,6 +92,8 @@ export function getCloudinaryUrl(
     options.quality && options.quality !== "auto" ? `q_${options.quality}` : "q_auto:good"
   );
 
+  if (options.aspectRatio) transformations.push(`ar_${options.aspectRatio}`);
+  if (options.background) transformations.push(`b_${options.background}`);
   if (options.width) transformations.push(`w_${options.width}`);
   if (options.height) transformations.push(`h_${options.height}`);
   if (options.crop) transformations.push(`c_${options.crop}`);
@@ -127,12 +131,14 @@ export function getProductThumbnailUrl(url: string): string {
 }
 
 /**
- * High-definition catalog and product grid card (800w)
+ * High-definition catalog and product grid card (auto-padded to 3:4 with intelligent background fill)
  */
 export function getProductCardUrl(url: string): string {
   return getCloudinaryUrl(url, {
-    width: 900,
-    crop: "limit",
+    width: 800,
+    aspectRatio: "3:4",
+    crop: "pad",
+    background: "auto",
     quality: "auto:good",
   });
 }

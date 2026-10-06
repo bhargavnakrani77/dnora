@@ -14,6 +14,7 @@ export const productColorVariantSchema = z.object({
   name: z.string().optional().default(""),
   color_hex: z.string().optional().default("#111111"),
   images: z.array(productImageSchema).default([]),
+  is_default: z.boolean().optional().default(false),
 });
 
 export const productSchema = z.object({

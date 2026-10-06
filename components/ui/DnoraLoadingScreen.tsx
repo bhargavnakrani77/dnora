@@ -53,11 +53,18 @@ export function DnoraLoadingScreen({
   // Preload authentic DNORA logo
   useEffect(() => {
     const img = new Image();
-    img.src = "/images/logo/dnora-logo-dark.png";
     img.onload = () => {
       logoImageRef.current = img;
       setIsImageLoaded(true);
     };
+    img.onerror = () => {
+      setIsImageLoaded(true);
+    };
+    img.src = "/images/logo/dnora-logo-dark.png";
+    if (img.complete) {
+      logoImageRef.current = img;
+      setIsImageLoaded(true);
+    }
   }, []);
 
   // Continuous loop handwriting animation

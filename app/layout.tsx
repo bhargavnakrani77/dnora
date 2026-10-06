@@ -246,7 +246,7 @@ export default async function RootLayout({
           <CartProvider>
             <AnnouncementBar initialConfig={announcementConfig} />
             <TopBar initialNavCategories={initialNavCategories} />
-            <div className="flex-1 flex flex-col">{children}</div>
+            <div className="flex-1 flex flex-col min-h-[70vh]">{children}</div>
             <Footer />
             <CartDrawer />
           </CartProvider>

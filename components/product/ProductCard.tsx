@@ -6,17 +6,24 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, ShoppingBag, Check, Zap } from "lucide-react";
 import { Product } from "@/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { useCart } from "@/lib/store/cart-store";
 import { useWishlist } from "@/lib/store/wishlist-store";
+import { getProductCardUrl } from "@/lib/cloudinary/transformations";
 
 interface ProductCardProps {
   product: Product;
   priority?: boolean;
   showBuyNow?: boolean;
+  className?: string;
 }
 
-export function ProductCard({ product, priority = false, showBuyNow = false }: ProductCardProps) {
+export function ProductCard({
+  product,
+  priority = false,
+  showBuyNow = false,
+  className,
+}: ProductCardProps) {
   const router = useRouter();
   const { addItem } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
@@ -70,6 +77,9 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
       ? activeVariant.images[1].secure_url
       : hoverImage || currentDisplayImage;
 
+  const optimizedDisplayImage = currentDisplayImage ? getProductCardUrl(currentDisplayImage) : "";
+  const optimizedHoverImage = currentHoverImage ? getProductCardUrl(currentHoverImage) : "";
+
   const discountPercent =
     product.compare_at_price && product.compare_at_price > product.price
       ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
@@ -93,18 +103,18 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
     Boolean(currentHoverImage) && currentHoverImage !== currentDisplayImage;
 
   return (
-    <div className="flex flex-col justify-between bg-white relative">
+    <div className={cn("h-full w-full flex flex-col justify-between bg-white relative", className)}>
       {/* Product Image Frame with Smooth Rounded Edges — scoped with group/image so hover triggers ONLY on image */}
-      <div className="group/image relative aspect-3/4 rounded-xl overflow-hidden bg-[#FAF8F5] border border-neutral-200/70">
+      <div className="group/image relative aspect-3/4 rounded-xl overflow-hidden bg-[#FAF8F5] border border-neutral-200/70 shrink-0">
         <Link href={`/product/${product.slug}`} className="block relative w-full h-full">
-          {currentDisplayImage ? (
+          {optimizedDisplayImage ? (
             <Image
-              src={currentDisplayImage}
+              src={optimizedDisplayImage}
               alt={product.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               priority={priority}
-              className={`object-cover transition-opacity duration-500 ${
+              className={`object-cover transition-all duration-500 group-hover/image:scale-105 ${
                 hasHoverImage ? "group-hover/image:opacity-0" : ""
               }`}
             />
@@ -114,9 +124,9 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
             </div>
           )}
 
-          {hasHoverImage && (
+          {hasHoverImage && optimizedHoverImage && (
             <Image
-              src={currentHoverImage}
+              src={optimizedHoverImage}
               alt={`${product.name} alternate angle`}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -174,117 +184,122 @@ export function ProductCard({ product, priority = false, showBuyNow = false }: P
         </div>
       </div>
 
-      {/* Product Details */}
-      <div className="pt-2 sm:pt-3 space-y-1">
-        {/* Color Variants Small Circles */}
-        {product.color_variants && product.color_variants.length > 0 && (
-          <div className="flex items-center gap-1.5 py-0.5 overflow-x-auto scrollbar-none">
-            {product.color_variants.map((variant, idx) => {
-              const hex = variant.color_hex || variant.hex || "#1A1A1A";
-              const isSelected = selectedVariantIndex === idx;
-              return (
-                <button
-                  key={variant.id || idx}
-                  type="button"
-                  title={variant.name}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSelectedVariantIndex(isSelected ? null : idx);
-                  }}
-                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 ${isSelected
-                      ? "ring-2 ring-black ring-offset-1 scale-110 shadow-xs"
-                      : "hover:scale-115 opacity-85 hover:opacity-100"
-                    }`}
-                  style={{
-                    backgroundColor: hex,
-                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",
-                  }}
-                  aria-label={variant.name ? `Select color ${variant.name}` : `Select color`}
-                />
-              );
-            })}
-            {activeVariant?.name?.trim() ? (
-              <span className="text-[10px] text-neutral-500 font-medium pl-1 truncate">
-                {activeVariant.name}
-              </span>
+      {/* Product Details: Stretches to full height with button pinned to bottom */}
+      <div className="flex-1 flex flex-col justify-between pt-2 sm:pt-3">
+        {/* Info Top Block */}
+        <div className="flex-1 flex flex-col space-y-1">
+          {/* Color Variants: Fixed slot height (h-5) ensures product title starts at identical level */}
+          <div className="h-5 flex items-center">
+            {product.color_variants && product.color_variants.length > 0 ? (
+              <div className="flex items-center gap-1.5 py-0.5 overflow-x-auto scrollbar-none w-full">
+                {product.color_variants.map((variant, idx) => {
+                  const hex = variant.color_hex || variant.hex || "#1A1A1A";
+                  const isSelected = selectedVariantIndex === idx;
+                  return (
+                    <button
+                      key={variant.id || idx}
+                      type="button"
+                      title={variant.name}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedVariantIndex(isSelected ? null : idx);
+                      }}
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 ${isSelected
+                          ? "ring-2 ring-black ring-offset-1 scale-110 shadow-xs"
+                          : "hover:scale-115 opacity-85 hover:opacity-100"
+                        }`}
+                      style={{
+                        backgroundColor: hex,
+                        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",
+                      }}
+                      aria-label={variant.name ? `Select color ${variant.name}` : `Select color`}
+                    />
+                  );
+                })}
+                {activeVariant?.name?.trim() ? (
+                  <span className="text-[10px] text-neutral-500 font-medium pl-1 truncate">
+                    {activeVariant.name}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
           </div>
-        )}
 
-        <Link
-          href={`/product/${product.slug}`}
-          className="block text-xs sm:text-[13px] font-semibold tracking-wider uppercase text-neutral-900 hover:text-black line-clamp-1 transition-colors"
-        >
-          {product.name}
-        </Link>
+          <Link
+            href={`/product/${product.slug}`}
+            className="block text-xs sm:text-[13px] font-semibold tracking-wider uppercase text-neutral-900 hover:text-black line-clamp-1 transition-colors min-h-[18px]"
+          >
+            {product.name}
+          </Link>
 
-        {product.short_description && (
-          <p className="text-[11px] text-neutral-500 line-clamp-1 font-light">
-            {product.short_description}
+          <p className="text-[11px] text-neutral-500 line-clamp-1 font-light min-h-[16px]">
+            {product.short_description || "\u00A0"}
           </p>
-        )}
 
-        <div className="flex items-center gap-2 pt-0.5">
-          <span className="text-xs sm:text-sm font-bold text-neutral-950">
-            {formatPrice(product.price)}
-          </span>
-          {product.compare_at_price && product.compare_at_price > product.price && (
-            <span className="text-[10px] sm:text-[11px] text-neutral-400 line-through">
-              {formatPrice(product.compare_at_price)}
+          <div className="flex items-center gap-2 pt-0.5">
+            <span className="text-xs sm:text-sm font-bold text-neutral-950">
+              {formatPrice(product.price)}
             </span>
-          )}
+            {product.compare_at_price && product.compare_at_price > product.price && (
+              <span className="text-[10px] sm:text-[11px] text-neutral-400 line-through">
+                {formatPrice(product.compare_at_price)}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Mobile / Inline Action Buttons */}
-        {showBuyNow ? (
-          <div className="flex items-center gap-2 pt-2">
+        {/* Action Buttons: Pinned to bottom using mt-auto */}
+        <div className="mt-auto pt-2.5">
+          {showBuyNow ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="flex-1 py-2 px-2 rounded-lg border border-neutral-300 hover:border-black bg-white text-neutral-900 text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs no-underline whitespace-nowrap select-none"
+              >
+                {added ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="no-underline">Added</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span className="no-underline">Add to Bag</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                className="flex-1 py-2 px-2 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs no-underline whitespace-nowrap select-none"
+              >
+                <span className="no-underline">Buy Now</span>
+              </button>
+            </div>
+          ) : (
+            /* Mobile Quick Add Button */
             <button
               type="button"
               onClick={handleAddToCart}
-              className="flex-1 py-2 px-2 rounded-lg border border-neutral-300 hover:border-black bg-white text-neutral-900 text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs no-underline whitespace-nowrap select-none"
+              className="md:hidden w-full py-1.5 sm:py-2 bg-neutral-900 text-white text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 active:bg-black cursor-pointer shadow-xs no-underline whitespace-nowrap select-none"
             >
               {added ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <Check className="w-3 h-3 text-emerald-400" />
                   <span className="no-underline">Added</span>
                 </>
               ) : (
                 <>
-                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <ShoppingBag className="w-3 h-3" />
                   <span className="no-underline">Add to Bag</span>
                 </>
               )}
             </button>
-
-            <button
-              type="button"
-              onClick={handleBuyNow}
-              className="flex-1 py-2 px-2 rounded-lg bg-neutral-900 hover:bg-black text-white text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs no-underline whitespace-nowrap select-none"
-            >
-              <span className="no-underline">Buy Now</span>
-            </button>
-          </div>
-        ) : (
-          /* Mobile Quick Add Button */
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            className="md:hidden mt-2 w-full py-1.5 sm:py-2 bg-neutral-900 text-white text-[10px] font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-1.5 active:bg-black cursor-pointer shadow-xs no-underline whitespace-nowrap select-none"
-          >
-            {added ? (
-              <>
-                <Check className="w-3 h-3 text-emerald-400" />
-                <span className="no-underline">Added</span>
-              </>
-            ) : (
-              <>
-                <ShoppingBag className="w-3 h-3" />
-                <span className="no-underline">Add to Bag</span>
-              </>
-            )}
-          </button>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

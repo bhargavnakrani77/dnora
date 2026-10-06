@@ -24,6 +24,7 @@ export function CartDrawer() {
     closeCart,
     removeItem,
     updateQuantity,
+    clearCart,
     itemCount,
     subtotal,
     freeShippingProgress,
@@ -76,6 +77,15 @@ export function CartDrawer() {
               <h2 className="text-sm font-semibold text-neutral-900 tracking-[0.16em] uppercase">
                 Shopping Bag ({itemCount})
               </h2>
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="text-[10px] text-neutral-400 hover:text-rose-600 transition-colors uppercase tracking-wider underline cursor-pointer ml-1"
+                >
+                  Clear
+                </button>
+              )}
             </div>
             <button
               onClick={closeCart}

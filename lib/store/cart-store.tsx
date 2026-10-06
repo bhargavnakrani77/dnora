@@ -26,7 +26,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const FREE_SHIPPING_THRESHOLD = 250; // $250 luxury threshold
-const CART_STORAGE_KEY = "dnora_cart_items_v1";
+const CART_STORAGE_KEY = "dnora_cart_items_v2";
 
 let memoryCart: CartItem[] = [];
 let initialized = false;
@@ -35,12 +35,17 @@ const listeners = new Set<() => void>();
 function getCartSnapshot(): CartItem[] {
   if (!initialized && typeof window !== "undefined") {
     try {
+      // Purge any legacy default / demo cart keys
+      localStorage.removeItem("dnora_cart_items_v1");
+      localStorage.removeItem("dnora_cart_items");
       const stored = localStorage.getItem(CART_STORAGE_KEY);
       if (stored) {
         memoryCart = JSON.parse(stored);
+      } else {
+        memoryCart = [];
       }
     } catch {
-      // Ignore localStorage errors
+      memoryCart = [];
     }
     initialized = true;
   }
@@ -63,7 +68,11 @@ function setCartItems(newItems: CartItem[]) {
   memoryCart = newItems;
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newItems));
+      if (newItems.length === 0) {
+        localStorage.removeItem(CART_STORAGE_KEY);
+      } else {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(newItems));
+      }
     } catch {
       // Ignore quota errors
     }

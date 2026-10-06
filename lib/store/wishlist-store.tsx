@@ -14,7 +14,7 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
-const WISHLIST_STORAGE_KEY = "dnora_wishlist_items_v1";
+const WISHLIST_STORAGE_KEY = "dnora_wishlist_items_v2";
 
 let memoryWishlist: Product[] = [];
 let initialized = false;
@@ -23,12 +23,15 @@ const listeners = new Set<() => void>();
 function getWishlistSnapshot(): Product[] {
   if (!initialized && typeof window !== "undefined") {
     try {
+      localStorage.removeItem("dnora_wishlist_items_v1");
       const stored = localStorage.getItem(WISHLIST_STORAGE_KEY);
       if (stored) {
         memoryWishlist = JSON.parse(stored);
+      } else {
+        memoryWishlist = [];
       }
     } catch {
-      // Ignore localStorage read errors
+      memoryWishlist = [];
     }
     initialized = true;
   }

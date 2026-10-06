@@ -58,6 +58,7 @@ export interface ProductColorVariant {
   color_hex?: string; // e.g., "#1A1A1A", "#8B5A2B", defaults to #111111
   hex?: string; // convenient alias
   images: ProductImage[];
+  is_default?: boolean;
 }
 
 export interface Product {

@@ -28,10 +28,12 @@ import {
   Check,
   ChevronRight,
   Save,
+  Sliders,
 } from "lucide-react";
 import { ProductCategory, ProductColorVariant, ProductImage } from "@/types";
 import { getValidColorHex } from "@/lib/utils";
 import { uploadDirectToCloudinary } from "@/lib/cloudinary/client-upload";
+import { ProductImageAdjustModal } from "@/components/admin";
 
 const LUXURY_COLOR_PRESETS = [
   { name: "Noir Black", hex: "#111111" },
@@ -95,6 +97,73 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
     type: "main" | "hover" | "extra";
     extraIndex?: number;
   } | null>(null);
+
+  // Step 3 Configuration: "single" (No color variants) vs "variants" (Has color variants)
+  const [colorMode, setColorMode] = useState<"single" | "variants">("single");
+  const [defaultVariantIndex, setDefaultVariantIndex] = useState<number>(0);
+
+  // Image Adjustment / Card Fit Modal State
+  const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+  const [adjustTarget, setAdjustTarget] = useState<{
+    type: "slot" | "variant";
+    slotIndex?: number;
+    variantIndex?: number;
+    imageIndex?: number;
+    imageUrl: string;
+  } | null>(null);
+
+  const handleOpenAdjust = (target: {
+    type: "slot" | "variant";
+    slotIndex?: number;
+    variantIndex?: number;
+    imageIndex?: number;
+    imageUrl: string;
+  }) => {
+    setAdjustTarget(target);
+    setAdjustModalOpen(true);
+  };
+
+  const handleAdjustSave = (newUrl: string, publicId?: string) => {
+    if (!adjustTarget) return;
+
+    if (adjustTarget.type === "slot" && adjustTarget.slotIndex !== undefined) {
+      const sIdx = adjustTarget.slotIndex;
+      setImages((prev) => {
+        const next = [...prev];
+        if (next[sIdx]) {
+          next[sIdx] = {
+            ...next[sIdx],
+            secure_url: newUrl,
+            cloudinary_public_id: publicId || next[sIdx].cloudinary_public_id,
+          };
+        }
+        return next;
+      });
+    } else if (
+      adjustTarget.type === "variant" &&
+      adjustTarget.variantIndex !== undefined &&
+      adjustTarget.imageIndex !== undefined
+    ) {
+      const vIdx = adjustTarget.variantIndex;
+      const imgIdx = adjustTarget.imageIndex;
+      setColorVariants((prev) => {
+        const next = [...prev];
+        if (next[vIdx] && next[vIdx].images && next[vIdx].images[imgIdx]) {
+          const updatedImages = [...next[vIdx].images];
+          updatedImages[imgIdx] = {
+            ...updatedImages[imgIdx],
+            secure_url: newUrl,
+            cloudinary_public_id: publicId || updatedImages[imgIdx].cloudinary_public_id,
+          };
+          next[vIdx] = { ...next[vIdx], images: updatedImages };
+        }
+        return next;
+      });
+    }
+
+    setAdjustModalOpen(false);
+    setAdjustTarget(null);
+  };
 
   // Step 4: Customizable Product Detail Tabs (Craftsmanship, Shipping, Leather Care)
   // Tab 1: Craftsmanship & Details
@@ -183,7 +252,16 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
             setIsBestSeller(Boolean(p.is_best_seller));
             setIsNewArrival(Boolean(p.is_new_arrival));
             setImages(p.images || []);
-            setColorVariants(p.color_variants || []);
+            const variantsList: ProductColorVariant[] = p.color_variants || [];
+            setColorVariants(variantsList);
+            if (variantsList.length > 0) {
+              setColorMode("variants");
+              const defIdx = variantsList.findIndex((v: ProductColorVariant) => v.is_default);
+              setDefaultVariantIndex(defIdx >= 0 ? defIdx : 0);
+            } else {
+              setColorMode("single");
+              setDefaultVariantIndex(0);
+            }
             setShortDesc(p.short_description || "");
             setDesc(p.description || "");
 
@@ -327,15 +405,44 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
     setImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
-  // Color Variants Management
+  // Color Mode & Variants Handlers
+  const handleColorModeChange = (mode: "single" | "variants") => {
+    setColorMode(mode);
+    if (mode === "variants" && colorVariants.length === 0) {
+      const initialVariant: ProductColorVariant = {
+        id: `var-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: "Noir Black",
+        color_hex: "#111111",
+        images: images.length > 0 ? [...images] : [],
+        is_default: true,
+      };
+      setColorVariants([initialVariant]);
+      setDefaultVariantIndex(0);
+    }
+  };
+
+  const handleSetDefaultVariant = (idx: number) => {
+    setDefaultVariantIndex(idx);
+    setColorVariants((prev) =>
+      prev.map((v, i) => ({
+        ...v,
+        is_default: i === idx,
+      }))
+    );
+  };
+
   const handleAddColorVariant = () => {
     const newVariant: ProductColorVariant = {
       id: `var-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: "",
       color_hex: LUXURY_COLOR_PRESETS[colorVariants.length % LUXURY_COLOR_PRESETS.length].hex,
       images: [],
+      is_default: colorVariants.length === 0,
     };
     setColorVariants((prev) => [...prev, newVariant]);
+    if (colorVariants.length === 0) {
+      setDefaultVariantIndex(0);
+    }
   };
 
   const handleUpdateVariant = (index: number, updates: Partial<ProductColorVariant>) => {
@@ -348,6 +455,9 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
 
   const handleRemoveVariant = (indexToRemove: number) => {
     setColorVariants((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    if (defaultVariantIndex >= indexToRemove && defaultVariantIndex > 0) {
+      setDefaultVariantIndex((prev) => prev - 1);
+    }
   };
 
   const triggerVariantImageUpload = (
@@ -436,8 +546,25 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
       setCurrentStep(2);
       return;
     }
-    if (images.length === 0) {
-      setErrorMsg("Please upload at least one image in Step 3.");
+    const effectiveDefaultIdx = Math.max(
+      0,
+      defaultVariantIndex < colorVariants.length ? defaultVariantIndex : 0
+    );
+    const defaultVar = colorVariants[effectiveDefaultIdx];
+
+    const finalCatalogImages: ProductImage[] =
+      colorMode === "variants"
+        ? (defaultVar?.images && defaultVar.images.length > 0
+            ? defaultVar.images
+            : colorVariants.flatMap((v) => v.images || []))
+        : images;
+
+    if (finalCatalogImages.length === 0) {
+      setErrorMsg(
+        colorMode === "variants"
+          ? "Please upload at least one image for your default color variant in Step 3."
+          : "Please upload at least one image in Step 3."
+      );
       setCurrentStep(3);
       return;
     }
@@ -467,16 +594,20 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
         is_best_seller: isBestSeller,
         is_new_arrival: isNewArrival,
         status: status,
-        images: images.map((img, idx) => ({
+        images: finalCatalogImages.map((img, idx) => ({
           ...img,
           sort_order: idx + 1,
         })),
-        color_variants: colorVariants.map((v) => ({
-          id: v.id,
-          name: v.name?.trim() || "",
-          color_hex: getValidColorHex(v.color_hex),
-          images: v.images && v.images.length > 0 ? v.images : (images.length > 0 ? [images[0]] : []),
-        })),
+        color_variants:
+          colorMode === "variants"
+            ? colorVariants.map((v, vIdx) => ({
+                id: v.id,
+                name: v.name?.trim() || "",
+                color_hex: getValidColorHex(v.color_hex),
+                images: v.images && v.images.length > 0 ? v.images : [],
+                is_default: vIdx === effectiveDefaultIdx,
+              }))
+            : [],
       };
 
       const res = await fetch(`/api/products/${id}`, {
@@ -988,343 +1119,582 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
           {/* ========================================================================= */}
           {currentStep === 3 && (
             <div className="space-y-6 animate-in fade-in">
-              {/* Main Silhouette Imagery */}
-              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+              {/* Step 3 Top Choice: Single Color vs Multi-Color Variants */}
+              <div className="bg-white rounded-2xl border border-neutral-200/80 p-5 sm:p-6 shadow-xs space-y-4">
                 <div className="border-b border-neutral-100 pb-3">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
-                    Step 3 of 4
+                    Step 3 of 4: Configuration
                   </span>
-                  <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
-                    Catalog Imagery & Hover Reveals
+                  <h2 className="text-base sm:text-lg font-bold text-neutral-950 font-serif mt-0.5">
+                    Select Product Color Type
                   </h2>
                   <p className="text-xs text-neutral-500 font-light">
-                    Upload your high-definition photography. Slot 1 is the default catalog image; Slot 2 is revealed on customer mouse hover.
+                    Choose whether this bag has only one color or comes in multiple color shades.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Slot 0: Main Image */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-neutral-900" />
-                        1. Main Catalog Image <span className="text-rose-500">*</span>
-                      </span>
-                      {images[0] && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(0)}
-                          className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* 1. Single Color */}
+                  <button
+                    type="button"
+                    onClick={() => handleColorModeChange("single")}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                      colorMode === "single"
+                        ? "bg-neutral-900 border-neutral-900 text-white shadow-sm ring-2 ring-neutral-900/15"
+                        : "bg-white border-neutral-200 text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50"
+                    }`}
+                  >
                     <div
-                      onClick={() => triggerUploadForSlot(0)}
-                      className={`relative aspect-[4/5] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 transition-all cursor-pointer group overflow-hidden ${
-                        images[0]
-                          ? "border-neutral-300 bg-white"
-                          : "border-neutral-300 hover:border-black bg-neutral-50 hover:bg-neutral-100/60"
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${
+                        colorMode === "single" ? "border-white bg-white text-black" : "border-neutral-400"
                       }`}
                     >
-                      {images[0] ? (
-                        <>
-                          <Image
-                            src={images[0].secure_url}
-                            alt="Main Product"
-                            fill
-                            sizes="(max-width: 768px) 100vw, 400px"
-                            className="object-contain p-2"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <span className="px-3 py-1.5 bg-white text-black text-xs font-bold rounded-lg shadow-sm">
-                              Change Photo
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-center space-y-2">
-                          {uploadingSlot === 0 ? (
-                            <Loader2 className="w-8 h-8 animate-spin text-neutral-600 mx-auto" />
-                          ) : (
-                            <Upload className="w-8 h-8 text-neutral-400 group-hover:text-black mx-auto transition-colors" />
-                          )}
-                          <p className="text-xs font-bold text-neutral-700">Click to Upload Main Image</p>
-                          <p className="text-[10px] text-neutral-400">PNG, JPG or WebP (Recommended 1200x1500)</p>
-                        </div>
-                      )}
+                      {colorMode === "single" && <div className="w-2.5 h-2.5 rounded-full bg-black" />}
                     </div>
-                  </div>
-
-                  {/* Slot 1: Hover Image */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-neutral-400" />
-                        2. Hover / Silhouette Reveal (Optional)
-                      </span>
-                      {images[1] && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(1)}
-                          className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      )}
+                    <div className="space-y-0.5">
+                      <span className="text-xs sm:text-sm font-bold block">1. No Color Variant (Single Product)</span>
+                      <p
+                        className={`text-[11px] font-light leading-relaxed ${
+                          colorMode === "single" ? "text-neutral-300" : "text-neutral-500"
+                        }`}
+                      >
+                        Single shade. Upload Main Photo (Slot 1) &amp; Hover Photo (Slot 2) directly.
+                      </p>
                     </div>
+                  </button>
 
+                  {/* 2. Color Variants */}
+                  <button
+                    type="button"
+                    onClick={() => handleColorModeChange("variants")}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+                      colorMode === "variants"
+                        ? "bg-neutral-900 border-neutral-900 text-white shadow-sm ring-2 ring-neutral-900/15"
+                        : "bg-white border-neutral-200 text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50"
+                    }`}
+                  >
                     <div
-                      onClick={() => triggerUploadForSlot(1)}
-                      className={`relative aspect-[4/5] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 transition-all cursor-pointer group overflow-hidden ${
-                        images[1]
-                          ? "border-neutral-300 bg-white"
-                          : "border-neutral-300 hover:border-black bg-neutral-50 hover:bg-neutral-100/60"
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${
+                        colorMode === "variants" ? "border-white bg-white text-black" : "border-neutral-400"
                       }`}
                     >
-                      {images[1] ? (
-                        <>
-                          <Image
-                            src={images[1].secure_url}
-                            alt="Hover Reveal"
-                            fill
-                            sizes="(max-width: 768px) 100vw, 400px"
-                            className="object-contain p-2"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <span className="px-3 py-1.5 bg-white text-black text-xs font-bold rounded-lg shadow-sm">
-                              Change Photo
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-center space-y-2">
-                          {uploadingSlot === 1 ? (
-                            <Loader2 className="w-8 h-8 animate-spin text-neutral-600 mx-auto" />
-                          ) : (
-                            <Upload className="w-8 h-8 text-neutral-400 group-hover:text-black mx-auto transition-colors" />
-                          )}
-                          <p className="text-xs font-bold text-neutral-700">Click to Upload Hover Image</p>
-                          <p className="text-[10px] text-neutral-400">Side silhouette, back angle, or lifestyle shot</p>
-                        </div>
-                      )}
+                      {colorMode === "variants" && <div className="w-2.5 h-2.5 rounded-full bg-black" />}
                     </div>
-                  </div>
+                    <div className="space-y-0.5">
+                      <span className="text-xs sm:text-sm font-bold block">2. Has Color Variants (Multi-Color)</span>
+                      <p
+                        className={`text-[11px] font-light leading-relaxed ${
+                          colorMode === "variants" ? "text-neutral-300" : "text-neutral-500"
+                        }`}
+                      >
+                        Multiple shades (e.g. Noir, Tan, Cream). Set default catalog color &amp; matching photos.
+                      </p>
+                    </div>
+                  </button>
                 </div>
+              </div>
 
-                {/* Direct Image URL input */}
-                <div className="pt-2 border-t border-neutral-100">
-                  <label className="text-xs font-bold uppercase tracking-wider text-neutral-800 block mb-1.5">
-                    Or Add Image via Public CDN / Web URL
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={manualUrlInput}
-                      onChange={(e) => setManualUrlInput(e.target.value)}
-                      placeholder="https://example.com/dnora-bag.jpg"
-                      className="flex-1 px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-black/10 focus:border-neutral-900 font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddManualUrl}
-                      className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors cursor-pointer"
-                    >
-                      Attach URL
-                    </button>
-                  </div>
-                </div>
-
-                {/* Extra Gallery Photos */}
-                {images.length > 2 && (
-                  <div className="pt-3 border-t border-neutral-100 space-y-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 block">
-                      Additional Gallery Shots ({images.length - 2})
+              {/* ========================================== */}
+              {/* MODE 1: SINGLE COLOR (NO VARIANTS)         */}
+              {/* ========================================== */}
+              {colorMode === "single" && (
+                <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
+                      Single Product Photography
                     </span>
-                    <div className="flex flex-wrap gap-3">
-                      {images.slice(2).map((img, idx) => (
-                        <div
-                          key={idx}
-                          className="relative w-20 h-24 rounded-lg border border-neutral-200 overflow-hidden group bg-white"
-                        >
-                          <Image
-                            src={img.secure_url}
-                            alt="Gallery extra"
-                            fill
-                            className="object-contain p-1"
-                          />
+                    <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
+                      Catalog Imagery &amp; Hover Reveals
+                    </h2>
+                    <p className="text-xs text-neutral-500 font-light">
+                      Upload Slot 1 (Primary Catalog Photo) and Slot 2 (Interactive Hover Photo).
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Slot 0: Main Image */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-neutral-900" />
+                          1. Main Catalog Image <span className="text-rose-500">*</span>
+                        </span>
+                        {images[0] && (
                           <button
                             type="button"
-                            onClick={() => handleRemoveImage(idx + 2)}
-                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                            onClick={() => handleRemoveImage(0)}
+                            className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
                           >
-                            ✕
+                            Remove
                           </button>
-                        </div>
-                      ))}
+                        )}
+                      </div>
+
+                      <div
+                        onClick={() => !images[0] && triggerUploadForSlot(0)}
+                        className={`relative aspect-[4/5] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 transition-all cursor-pointer group overflow-hidden ${
+                          images[0]
+                            ? "border-neutral-300 bg-white"
+                            : "border-neutral-300 hover:border-black bg-neutral-50 hover:bg-neutral-100/60"
+                        }`}
+                      >
+                        {images[0] ? (
+                          <>
+                            <Image
+                              src={images[0].secure_url}
+                              alt="Main Product"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 400px"
+                              className="object-contain p-2"
+                            />
+                            {/* Action buttons: visible on mobile, reveal on hover for desktop */}
+                            <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAdjust({
+                                    type: "slot",
+                                    slotIndex: 0,
+                                    imageUrl: images[0].secure_url,
+                                  });
+                                }}
+                                className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm transition active:scale-95"
+                                title="Card Aspect Ratio & Floor Align Adjuster"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>Card Fit / Adjust</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  triggerUploadForSlot(0);
+                                }}
+                                className="px-2.5 py-1.5 bg-white text-black text-xs font-bold rounded-lg shadow-sm hover:bg-neutral-100 transition active:scale-95"
+                              >
+                                Change
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveImage(0);
+                                }}
+                                className="p-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 cursor-pointer shadow-sm transition active:scale-95"
+                                title="Remove Photo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
+                              Slot 1: Main Photo
+                            </span>
+                          </>
+                        ) : (
+                          <div className="text-center space-y-2">
+                            {uploadingSlot === 0 ? (
+                              <Loader2 className="w-8 h-8 animate-spin text-neutral-600 mx-auto" />
+                            ) : (
+                              <Upload className="w-8 h-8 text-neutral-400 group-hover:text-black mx-auto transition-colors" />
+                            )}
+                            <p className="text-xs font-bold text-neutral-700">Click to Upload Main Image</p>
+                            <p className="text-[10px] text-neutral-400">PNG, JPG or WebP (Recommended 1200x1500)</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Slot 1: Hover Image */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-neutral-400" />
+                          2. Hover / Silhouette Reveal (Optional)
+                        </span>
+                        {images[1] && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(1)}
+                            className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div
+                        onClick={() => !images[1] && triggerUploadForSlot(1)}
+                        className={`relative aspect-[4/5] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 transition-all cursor-pointer group overflow-hidden ${
+                          images[1]
+                            ? "border-neutral-300 bg-white"
+                            : "border-neutral-300 hover:border-black bg-neutral-50 hover:bg-neutral-100/60"
+                        }`}
+                      >
+                        {images[1] ? (
+                          <>
+                            <Image
+                              src={images[1].secure_url}
+                              alt="Hover Reveal"
+                              fill
+                              sizes="(max-width: 768px) 100vw, 400px"
+                              className="object-contain p-2"
+                            />
+                            {/* Action buttons: visible on mobile, reveal on hover for desktop */}
+                            <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAdjust({
+                                    type: "slot",
+                                    slotIndex: 1,
+                                    imageUrl: images[1].secure_url,
+                                  });
+                                }}
+                                className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm transition active:scale-95"
+                                title="Card Aspect Ratio & Floor Align Adjuster"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>Card Fit / Adjust</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  triggerUploadForSlot(1);
+                                }}
+                                className="px-2.5 py-1.5 bg-white text-black text-xs font-bold rounded-lg shadow-sm hover:bg-neutral-100 transition active:scale-95"
+                              >
+                                Change
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveImage(1);
+                                }}
+                                className="p-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 cursor-pointer shadow-sm transition active:scale-95"
+                                title="Remove Photo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
+                              Slot 2: Hover Photo
+                            </span>
+                          </>
+                        ) : (
+                          <div className="text-center space-y-2">
+                            {uploadingSlot === 1 ? (
+                              <Loader2 className="w-8 h-8 animate-spin text-neutral-600 mx-auto" />
+                            ) : (
+                              <Upload className="w-8 h-8 text-neutral-400 group-hover:text-black mx-auto transition-colors" />
+                            )}
+                            <p className="text-xs font-bold text-neutral-700">Click to Upload Hover Image</p>
+                            <p className="text-[10px] text-neutral-400">Side silhouette, back angle, or lifestyle shot</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Direct Image URL input */}
+                  <div className="pt-2 border-t border-neutral-100">
+                    <label className="text-xs font-bold uppercase tracking-wider text-neutral-800 block mb-1.5">
+                      Or Add Image via Public CDN / Web URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={manualUrlInput}
+                        onChange={(e) => setManualUrlInput(e.target.value)}
+                        placeholder="https://example.com/dnora-bag.jpg"
+                        className="flex-1 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs text-neutral-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-black/10 focus:border-neutral-900 font-mono"
+                      />
                       <button
                         type="button"
-                        onClick={triggerAddExtraImage}
-                        className="w-20 h-24 rounded-lg border-2 border-dashed border-neutral-300 hover:border-black flex flex-col items-center justify-center gap-1 text-neutral-400 hover:text-black cursor-pointer transition"
+                        onClick={handleAddManualUrl}
+                        className="px-4 py-2.5 bg-neutral-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors cursor-pointer shadow-sm"
                       >
-                        <Plus className="w-5 h-5" />
-                        <span className="text-[10px] font-bold">Add</span>
+                        Attach URL
                       </button>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Multi-Color Variants & Swatches */}
-              {/* Multi-Color Variants & Swatches (Optional) */}
-              <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
-                        Visual Variations
+                  {/* Extra Gallery Photos */}
+                  {images.length > 2 && (
+                    <div className="pt-3 border-t border-neutral-100 space-y-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 block">
+                        Additional Gallery Shots ({images.length - 2})
                       </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
-                        Optional
-                      </span>
-                    </div>
-                    <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
-                      Color Swatches &amp; Dedicated Gallery
-                    </h2>
-                    <p className="text-xs text-neutral-500 font-light mt-0.5">
-                      Optional: Add colorways if this item comes in multiple shades. Customers see matching photos when clicking each swatch.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddColorVariant}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-black transition cursor-pointer self-start"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Color</span>
-                  </button>
-                </div>
-
-                {colorVariants.length === 0 ? (
-                  <div className="text-center py-8 bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
-                    <Palette className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-neutral-700">No Color Variants Configured (Optional)</p>
-                    <p className="text-[11px] text-neutral-400 max-w-sm mx-auto mt-0.5">
-                      If this item comes in multiple shades (e.g. Noir Black, Ocean Blue), click below to add them. Otherwise, leave empty to display base photos.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleAddColorVariant}
-                      className="mt-3 px-4 py-1.5 bg-neutral-900 text-white text-xs font-semibold rounded-lg hover:bg-black cursor-pointer"
-                    >
-                      + Add First Color Variant
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {colorVariants.map((variant, vIdx) => {
-                      const safeHex = getValidColorHex(variant.color_hex);
-                      const isUploadingThis = variantUploadingIndex === vIdx;
-                      return (
-                        <div
-                          key={variant.id || vIdx}
-                          className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/70 space-y-3"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="w-6 h-6 rounded-full border border-neutral-300 shadow-xs shrink-0"
-                                style={{ backgroundColor: safeHex }}
-                              />
-                              <input
-                                type="text"
-                                value={variant.name || ""}
-                                onChange={(e) => handleUpdateVariant(vIdx, { name: e.target.value })}
-                                placeholder="Color Name (Optional - leave blank for dot only)"
-                                className="px-2.5 py-1.5 text-xs font-medium bg-white border border-neutral-300 rounded-lg text-neutral-900 w-64 focus:outline-none focus:border-black"
-                              />
-                              <input
-                                type="color"
-                                value={safeHex}
-                                onChange={(e) => handleUpdateVariant(vIdx, { color_hex: e.target.value })}
-                                className="w-8 h-8 rounded-lg border border-neutral-300 p-0.5 cursor-pointer bg-white"
-                                title="Pick Color Code"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveVariant(vIdx)}
-                              className="text-neutral-400 hover:text-rose-600 transition cursor-pointer p-1"
-                              title="Delete Variant"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {/* Dedicated Gallery for this Color Variant */}
-                          <div className="space-y-1.5 pt-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-semibold text-neutral-700 uppercase tracking-wider">
-                                Variant Photos ({variant.images?.length || 0})
-                              </span>
-                              <span className="text-[10.5px] text-neutral-400">
-                                When customers select this color, only these photos will be shown
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2.5 items-center">
-                              {variant.images?.map((img, imgIdx) => (
-                                <div
-                                  key={imgIdx}
-                                  className="relative w-16 h-20 rounded-xl bg-white overflow-hidden border border-neutral-300 group shrink-0 shadow-xs"
-                                >
-                                  <Image
-                                    src={img.secure_url}
-                                    alt={variant.name || `Photo ${imgIdx + 1}`}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
-                                      className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer"
-                                      title="Remove Photo"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[8px] font-mono font-bold">
-                                    #{imgIdx + 1}
-                                  </span>
-                                </div>
-                              ))}
-
+                      <div className="flex flex-wrap gap-3">
+                        {images.slice(2).map((img, idx) => (
+                          <div
+                            key={idx}
+                            className="relative w-20 h-24 rounded-lg border border-neutral-200 overflow-hidden group bg-white shadow-2xs"
+                          >
+                            <Image
+                              src={img.secure_url}
+                              alt="Gallery extra"
+                              fill
+                              className="object-contain p-1"
+                            />
+                            <div className="absolute inset-0 bg-black/60 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 p-1">
                               <button
                                 type="button"
-                                onClick={() => triggerVariantImageUpload(vIdx, "extra", variant.images ? variant.images.length : 0)}
-                                disabled={isUploadingThis}
-                                className="w-16 h-20 rounded-xl border-2 border-dashed border-neutral-300 hover:border-black bg-white hover:bg-neutral-50 flex flex-col items-center justify-center text-[10.5px] text-neutral-600 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+                                onClick={() =>
+                                  handleOpenAdjust({
+                                    type: "slot",
+                                    slotIndex: idx + 2,
+                                    imageUrl: img.secure_url,
+                                  })
+                                }
+                                className="p-1 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded cursor-pointer shadow-sm"
+                                title="Fit / Adjust to Card"
                               >
-                                {isUploadingThis ? (
-                                  <Loader2 className="w-4 h-4 animate-spin text-neutral-500" />
-                                ) : (
-                                  <>
-                                    <Plus className="w-4 h-4 text-neutral-500 mb-0.5" />
-                                    <span className="font-semibold text-[9px]">Add Photo</span>
-                                  </>
-                                )}
+                                <Sliders className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImage(idx + 2)}
+                                className="p-1 bg-rose-600 text-white rounded hover:bg-rose-700 transition cursor-pointer shadow-sm"
+                                title="Remove photo"
+                              >
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        ))}
+                        <button
+                          type="button"
+                          onClick={triggerAddExtraImage}
+                          className="w-20 h-24 rounded-lg border-2 border-dashed border-neutral-300 hover:border-black flex flex-col items-center justify-center gap-1 text-neutral-400 hover:text-black cursor-pointer transition bg-white hover:bg-neutral-50"
+                        >
+                          <Plus className="w-5 h-5" />
+                          <span className="text-[10px] font-bold">Add</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================== */}
+              {/* MODE 2: HAS COLOR VARIANTS (MULTI-COLOR)   */}
+              {/* ========================================== */}
+              {colorMode === "variants" && (
+                <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
+                          Multi-Color Architecture
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
+                        Color Variants &amp; Dedicated Imagery
+                      </h2>
+                      <p className="text-xs text-neutral-500 font-light mt-0.5">
+                        Add each available shade. Mark your <b>Default Color</b> so its photos show on the storefront catalog cards!
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddColorVariant}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-black transition cursor-pointer self-start shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Color</span>
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  {colorVariants.length === 0 ? (
+                    <div className="text-center py-8 bg-neutral-50 rounded-xl border border-dashed border-neutral-200 space-y-3">
+                      <Palette className="w-8 h-8 text-neutral-400 mx-auto" />
+                      <p className="text-xs font-bold text-neutral-700">No Color Variants Configured</p>
+                      <p className="text-[11px] text-neutral-500 max-w-sm mx-auto font-light">
+                        Add your first color variant below (e.g. Noir Black).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleAddColorVariant}
+                        className="px-4 py-2 bg-neutral-900 text-white text-xs font-semibold rounded-xl hover:bg-black cursor-pointer shadow-sm"
+                      >
+                        + Add First Color Variant
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {colorVariants.map((variant, vIdx) => {
+                        const safeHex = getValidColorHex(variant.color_hex);
+                        const isUploadingThis = variantUploadingIndex === vIdx;
+                        const isDefault = vIdx === defaultVariantIndex;
+
+                        return (
+                          <div
+                            key={variant.id || vIdx}
+                            className={`p-5 rounded-2xl border transition-all space-y-4 ${
+                              isDefault
+                                ? "bg-amber-50/30 border-amber-300 ring-2 ring-amber-300/40"
+                                : "bg-neutral-50/70 border-neutral-200"
+                            }`}
+                          >
+                            {/* Top Row: Default Status, Swatch, Name, Presets & Trash */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-3">
+                                {/* Default Color Selector */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetDefaultVariant(vIdx)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs ${
+                                    isDefault
+                                      ? "bg-[#B89025] text-white ring-1 ring-[#B89025]"
+                                      : "bg-white border border-neutral-300 text-neutral-700 hover:border-black hover:text-black"
+                                  }`}
+                                >
+                                  <Check className={`w-3.5 h-3.5 ${isDefault ? "opacity-100" : "opacity-0"}`} />
+                                  <span>{isDefault ? "★ Default Storefront Color" : "Set as Default"}</span>
+                                </button>
+
+                                {/* Color Swatch & Native Picker */}
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-7 h-7 rounded-full border border-neutral-300 shadow-xs shrink-0"
+                                    style={{ backgroundColor: safeHex }}
+                                  />
+                                  <input
+                                    type="color"
+                                    value={safeHex}
+                                    onChange={(e) => handleUpdateVariant(vIdx, { color_hex: e.target.value })}
+                                    className="w-8 h-8 rounded-lg border border-neutral-300 p-0.5 cursor-pointer bg-white"
+                                    title="Pick Color Code"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={variant.name || ""}
+                                    onChange={(e) => handleUpdateVariant(vIdx, { name: e.target.value })}
+                                    placeholder="Color Name (e.g. Noir Black, Caramel Tan)"
+                                    className="px-3 py-1.5 text-xs font-semibold bg-white border border-neutral-300 rounded-lg text-neutral-900 w-52 sm:w-64 focus:outline-none focus:border-black shadow-2xs"
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveVariant(vIdx)}
+                                className="p-1.5 text-neutral-400 hover:text-rose-600 transition cursor-pointer self-end sm:self-auto"
+                                title="Delete Variant"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Quick Color Presets */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              <span className="text-[10px] uppercase font-bold text-neutral-400 mr-1">Presets:</span>
+                              {LUXURY_COLOR_PRESETS.map((p) => (
+                                <button
+                                  key={p.name}
+                                  type="button"
+                                  onClick={() => handleUpdateVariant(vIdx, { name: p.name, color_hex: p.hex })}
+                                  className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white border border-neutral-200 hover:border-black flex items-center gap-1 cursor-pointer transition"
+                                >
+                                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.hex }} />
+                                  <span>{p.name}</span>
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Dedicated Gallery for this Color Variant */}
+                            <div className="space-y-2 pt-2 border-t border-neutral-200/60">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-neutral-800 uppercase tracking-wider">
+                                  Variant Photos ({variant.images?.length || 0})
+                                </span>
+                                <span className="text-[10.5px] text-neutral-500">
+                                  Photo #1 = Main Catalog View, Photo #2 = Hover Reveal
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap gap-3 items-center">
+                                {variant.images?.map((img, imgIdx) => (
+                                  <div
+                                    key={imgIdx}
+                                    className="relative w-24 h-32 rounded-xl bg-white overflow-hidden border border-neutral-300 group shrink-0 shadow-xs"
+                                  >
+                                    <Image
+                                      src={img.secure_url}
+                                      alt={variant.name || `Photo ${imgIdx + 1}`}
+                                      fill
+                                      className="object-contain p-1"
+                                    />
+                                    {/* Mobile & Hover Action Overlay */}
+                                    <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleOpenAdjust({
+                                            type: "variant",
+                                            variantIndex: vIdx,
+                                            imageIndex: imgIdx,
+                                            imageUrl: img.secure_url,
+                                          })
+                                        }
+                                        className="p-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-lg cursor-pointer shadow-sm transition active:scale-95"
+                                        title="Fit / Adjust to Card"
+                                      >
+                                        <Sliders className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
+                                        className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer shadow-sm transition active:scale-95"
+                                        title="Remove Photo"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-white text-[9px] font-mono font-bold backdrop-blur-xs">
+                                      {imgIdx === 0 ? "Slot 1" : imgIdx === 1 ? "Slot 2" : `#${imgIdx + 1}`}
+                                    </span>
+                                  </div>
+                                ))}
+
+                                {/* Add Photo Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => triggerVariantImageUpload(vIdx, "extra", variant.images ? variant.images.length : 0)}
+                                  disabled={isUploadingThis}
+                                  className="w-24 h-32 rounded-xl border-2 border-dashed border-neutral-300 hover:border-black bg-white hover:bg-neutral-50 flex flex-col items-center justify-center text-[10.5px] text-neutral-600 cursor-pointer transition-colors shrink-0 disabled:opacity-50"
+                                >
+                                  {isUploadingThis ? (
+                                    <Loader2 className="w-5 h-5 animate-spin text-neutral-500" />
+                                  ) : (
+                                    <>
+                                      <Plus className="w-5 h-5 text-neutral-500 mb-1" />
+                                      <span className="font-bold text-[10px]">Add Photo</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {isDefault && (
+                              <p className="text-[11px] text-amber-800 bg-amber-100/60 p-2.5 rounded-xl border border-amber-200/80 font-medium flex items-center gap-1.5">
+                                <span>★</span>
+                                <span>
+                                  <b>Default Storefront Color:</b> Slot 1 &amp; Slot 2 photos of this shade will automatically be used for catalog listing cards, search results, and homepage collections.
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1632,6 +2002,26 @@ export default function AdminEditProductPage({ params }: EditPageProps) {
           )}
         </div>
       </div>
+
+      {/* Card Image Adjust & Floor Align Modal */}
+      {adjustModalOpen && adjustTarget && (
+        <ProductImageAdjustModal
+          isOpen={adjustModalOpen}
+          initialImageUrl={adjustTarget.imageUrl}
+          productName={name || "DNORA Luxury Bag"}
+          productPrice={price ? `₹${price}` : "₹1,299"}
+          onClose={() => {
+            setAdjustModalOpen(false);
+            setAdjustTarget(null);
+          }}
+          onSave={handleAdjustSave}
+          title={
+            adjustTarget.type === "slot"
+              ? `Adjust Slot ${(adjustTarget.slotIndex ?? 0) + 1} Photo (Card 3:4 Fit)`
+              : "Adjust Variant Photo (Card 3:4 Fit)"
+          }
+        />
+      )}
     </div>
   );
 }
