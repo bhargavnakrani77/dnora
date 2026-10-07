@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserSession } from "@/lib/auth/user-session";
 import { deleteUserAddress, setDefaultAddress, updateUserAddress } from "@/lib/data/account";
 
+export const dynamic = "force-dynamic";
+
 export async function DELETE(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }

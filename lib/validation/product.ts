@@ -15,6 +15,9 @@ export const productColorVariantSchema = z.object({
   color_hex: z.string().optional().default("#111111"),
   images: z.array(productImageSchema).default([]),
   is_default: z.boolean().optional().default(false),
+  hover_image_url: z.string().optional().nullable(),
+  hover_disabled: z.boolean().optional().default(false),
+  hover_image_index: z.number().optional().nullable(),
 });
 
 export const productSchema = z.object({
@@ -31,6 +34,8 @@ export const productSchema = z.object({
   is_best_seller: z.boolean().optional().default(false),
   is_new_arrival: z.boolean().optional().default(false),
   status: z.enum(["draft", "active", "archived"]).optional().default("active"),
+  hover_image_url: z.string().optional().nullable(),
+  hover_disabled: z.boolean().optional().default(false),
   craftsmanship_heading: z.string().optional().nullable(),
   craftsmanship_details: z.string().optional().nullable(),
   craftsmanship_mode: z.enum(["bullets", "text"]).optional().default("bullets").nullable(),
@@ -49,6 +54,8 @@ export const productUpdateSchema = z.object({
   slug: z.string().optional(),
   short_description: z.string().optional().default(""),
   description: z.string().optional().default(""),
+  hover_image_url: z.string().optional().nullable(),
+  hover_disabled: z.boolean().optional(),
   craftsmanship_heading: z.string().optional().nullable(),
   craftsmanship_details: z.string().optional().nullable(),
   craftsmanship_mode: z.enum(["bullets", "text"]).optional().nullable(),

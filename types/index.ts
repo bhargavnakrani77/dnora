@@ -59,6 +59,9 @@ export interface ProductColorVariant {
   hex?: string; // convenient alias
   images: ProductImage[];
   is_default?: boolean;
+  hover_image_url?: string | null;
+  hover_disabled?: boolean;
+  hover_image_index?: number | null;
 }
 
 export interface Product {
@@ -73,6 +76,8 @@ export interface Product {
   sku: string;
   stock: number;
   status: ProductStatus;
+  hover_image_url?: string | null;
+  hover_disabled?: boolean;
   craftsmanship_heading?: string | null;
   craftsmanship_details?: string | null;
   craftsmanship_mode?: "bullets" | "text" | null;

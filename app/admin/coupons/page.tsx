@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Tag,
   Plus,
@@ -44,6 +44,7 @@ export default function AdminCouponsPage() {
     valid_until: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const fetchCoupons = useCallback(async () => {
     try {
@@ -106,10 +107,14 @@ export default function AdminCouponsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || submitting) return;
+
     if (!form.code || !form.discount_value) {
       setStatusMsg({ type: "error", text: "Code and discount value are required." });
       return;
     }
+
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch("/api/admin/coupons", {
@@ -138,6 +143,7 @@ export default function AdminCouponsPage() {
       setStatusMsg({ type: "error", text: "Network error." });
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 

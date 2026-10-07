@@ -43,7 +43,7 @@ export function DynamicHomeSection({ section, products }: DynamicHomeSectionProp
 
         {isGrid ? (
           /* Grid View fallback if explicitly chosen */
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 items-stretch">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-4 lg:gap-5 xl:gap-5 items-stretch">
             {displayProducts.map((product, idx) => (
               <div key={product.id} className="h-full flex flex-col justify-between">
                 <ProductCard product={product} priority={idx < 4} className="h-full" />
@@ -68,7 +68,7 @@ export function DynamicHomeSection({ section, products }: DynamicHomeSectionProp
               {displayProducts.map((product, idx) => (
                 <div
                   key={product.id}
-                  className="w-[190px] sm:w-[230px] md:w-[270px] lg:w-[285px] shrink-0 snap-start h-full flex flex-col justify-between"
+                  className="w-[190px] sm:w-[220px] md:w-[230px] lg:w-[240px] xl:w-[250px] shrink-0 snap-start h-full flex flex-col justify-between"
                 >
                   <ProductCard product={product} priority={idx < 4} className="h-full" />
                 </div>

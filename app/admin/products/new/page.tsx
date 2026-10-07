@@ -78,6 +78,8 @@ export default function AdminNewProductPage() {
 
   // Step 3: Images & Color Variants
   const [images, setImages] = useState<ProductImage[]>([]);
+  const [hoverDisabled, setHoverDisabled] = useState(false);
+  const [hoverImageIndex, setHoverImageIndex] = useState<number | null>(null);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [manualUrlInput, setManualUrlInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -183,6 +185,7 @@ export default function AdminNewProductPage() {
 
   // UI State
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -275,36 +278,41 @@ export default function AdminNewProductPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Upload an image file for product main/hover slots
+  // Upload image file(s) for product (supports multiple files)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
 
-    const slot = targetSlotToUpload !== null ? targetSlotToUpload : (images.length < 2 ? images.length : 0);
+    const slot = targetSlotToUpload !== null ? targetSlotToUpload : images.length;
     setUploadingSlot(slot);
     setErrorMsg(null);
 
     try {
-      const res = await uploadDirectToCloudinary(file, {
-        folder: "dnora/products",
-        resourceType: "image",
-      });
+      const uploadedList: ProductImage[] = [];
+      for (const file of files) {
+        const res = await uploadDirectToCloudinary(file, {
+          folder: "dnora/products",
+          resourceType: "image",
+        });
 
-      if (!res.secure_url) {
-        throw new Error("Failed to upload image");
+        if (res.secure_url) {
+          uploadedList.push({
+            secure_url: res.secure_url,
+            cloudinary_public_id: res.public_id || "",
+            alt_text: `${name || "Product"} View`,
+            sort_order: images.length + uploadedList.length + 1,
+          });
+        }
       }
 
-      const newImage: ProductImage = {
-        secure_url: res.secure_url,
-        cloudinary_public_id: res.public_id || "",
-        alt_text: `${name} View ${slot + 1}`,
-        sort_order: slot + 1,
-      };
-
       setImages((prev) => {
-        const next = [...prev];
-        next[slot] = newImage;
-        return next;
+        if (targetSlotToUpload !== null && files.length === 1) {
+          const next = [...prev];
+          next[targetSlotToUpload] = uploadedList[0];
+          return next;
+        }
+        return [...prev, ...uploadedList];
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Image upload failed";
@@ -318,12 +326,11 @@ export default function AdminNewProductPage() {
 
   const handleAddManualUrl = () => {
     if (!manualUrlInput.trim()) return;
-    const slot = images.length < 2 ? images.length : images.length;
     const newImage: ProductImage = {
       secure_url: manualUrlInput.trim(),
       cloudinary_public_id: "",
-      alt_text: `${name} View ${slot + 1}`,
-      sort_order: slot + 1,
+      alt_text: `${name || "Product"} View ${images.length + 1}`,
+      sort_order: images.length + 1,
     };
     setImages((prev) => [...prev, newImage]);
     setManualUrlInput("");
@@ -331,6 +338,31 @@ export default function AdminNewProductPage() {
 
   const handleRemoveImage = (index: number) => {
     setImages((prev) => prev.filter((_, idx) => idx !== index));
+    if (hoverImageIndex === index) {
+      setHoverImageIndex(null);
+    } else if (hoverImageIndex !== null && hoverImageIndex > index) {
+      setHoverImageIndex(hoverImageIndex - 1);
+    }
+  };
+
+  const handleSetMainImage = (imgIdx: number) => {
+    setImages((prev) => {
+      if (!prev[imgIdx]) return prev;
+      const copy = [...prev];
+      const [chosen] = copy.splice(imgIdx, 1);
+      copy.unshift(chosen);
+      return copy;
+    });
+    setHoverImageIndex(null);
+  };
+
+  const handleSetHoverImage = (imgIdx: number) => {
+    setHoverDisabled(false);
+    setHoverImageIndex(imgIdx);
+  };
+
+  const handleToggleHoverOff = () => {
+    setHoverDisabled((prev) => !prev);
   };
 
   // Color Mode & Variants Handlers
@@ -343,6 +375,7 @@ export default function AdminNewProductPage() {
         color_hex: "#111111",
         images: images.length > 0 ? [...images] : [],
         is_default: true,
+        hover_disabled: false,
       };
       setColorVariants([initialVariant]);
       setDefaultVariantIndex(0);
@@ -366,6 +399,7 @@ export default function AdminNewProductPage() {
       color_hex: "#111111",
       images: [],
       is_default: colorVariants.length === 0,
+      hover_disabled: false,
     };
     setColorVariants((prev) => [...prev, newVariant]);
     if (colorVariants.length === 0) {
@@ -380,30 +414,78 @@ export default function AdminNewProductPage() {
     }
   };
 
+  const handleSetVariantMain = (vIdx: number, imgIdx: number) => {
+    setColorVariants((prev) => {
+      const next = [...prev];
+      const targetVar = next[vIdx];
+      if (!targetVar || !targetVar.images[imgIdx]) return prev;
+      const copy = [...targetVar.images];
+      const [chosen] = copy.splice(imgIdx, 1);
+      copy.unshift(chosen);
+      next[vIdx] = {
+        ...targetVar,
+        images: copy,
+        hover_image_url: targetVar.hover_image_url === chosen.secure_url ? null : targetVar.hover_image_url,
+      };
+      return next;
+    });
+  };
+
+  const handleSetVariantHover = (vIdx: number, imgIdx: number) => {
+    setColorVariants((prev) => {
+      const next = [...prev];
+      const targetVar = next[vIdx];
+      if (!targetVar || !targetVar.images[imgIdx]) return prev;
+      next[vIdx] = {
+        ...targetVar,
+        hover_disabled: false,
+        hover_image_url: targetVar.images[imgIdx].secure_url,
+        hover_image_index: imgIdx,
+      };
+      return next;
+    });
+  };
+
+  const handleToggleVariantHoverOff = (vIdx: number, disabled: boolean) => {
+    setColorVariants((prev) => {
+      const next = [...prev];
+      const targetVar = next[vIdx];
+      if (!targetVar) return prev;
+      next[vIdx] = {
+        ...targetVar,
+        hover_disabled: disabled,
+        hover_image_url: disabled ? null : (targetVar.images?.[1]?.secure_url || null),
+      };
+      return next;
+    });
+  };
+
   const handleVariantFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !variantUploadTarget) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0 || !variantUploadTarget) return;
+    const files = Array.from(fileList);
 
     const { variantIndex, type, extraIndex } = variantUploadTarget;
     setVariantUploadingIndex(variantIndex);
     setErrorMsg(null);
 
     try {
-      const res = await uploadDirectToCloudinary(file, {
-        folder: "dnora/products",
-        resourceType: "image",
-      });
+      const uploadedList: ProductImage[] = [];
+      for (const file of files) {
+        const res = await uploadDirectToCloudinary(file, {
+          folder: "dnora/products",
+          resourceType: "image",
+        });
 
-      if (!res.secure_url) {
-        throw new Error("Failed to upload image");
+        if (res.secure_url) {
+          uploadedList.push({
+            secure_url: res.secure_url,
+            cloudinary_public_id: res.public_id || "",
+            alt_text: "Color Variant Photo",
+            sort_order: (colorVariants[variantIndex]?.images?.length || 0) + uploadedList.length + 1,
+          });
+        }
       }
-
-      const newImg: ProductImage = {
-        secure_url: res.secure_url,
-        cloudinary_public_id: res.public_id || "",
-        alt_text: "Color Variant Photo",
-        sort_order: 1,
-      };
 
       setColorVariants((prev) => {
         const next = [...prev];
@@ -411,14 +493,14 @@ export default function AdminNewProductPage() {
         if (!targetVar) return prev;
 
         const currentImages = targetVar.images ? [...targetVar.images] : [];
-        if (type === "main") {
-          currentImages[0] = newImg;
-        } else if (type === "hover") {
-          currentImages[1] = newImg;
-        } else if (type === "extra" && extraIndex !== undefined) {
-          currentImages[extraIndex] = newImg;
+        if (type === "main" && uploadedList[0]) {
+          currentImages[0] = uploadedList[0];
+        } else if (type === "hover" && uploadedList[0]) {
+          currentImages[1] = uploadedList[0];
+        } else if (type === "extra" && extraIndex !== undefined && uploadedList[0] && files.length === 1) {
+          currentImages[extraIndex] = uploadedList[0];
         } else {
-          currentImages.push(newImg);
+          currentImages.push(...uploadedList);
         }
 
         next[variantIndex] = { ...targetVar, images: currentImages };
@@ -484,6 +566,11 @@ export default function AdminNewProductPage() {
       return;
     }
 
+    if (isSubmittingRef.current || submitting) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setSubmitting(true);
 
     try {
@@ -509,7 +596,12 @@ export default function AdminNewProductPage() {
         is_best_seller: isBestSeller,
         is_new_arrival: isNewArrival,
         status: status,
-        images: finalCatalogImages.slice(0, 4).map((img, idx) => ({
+        hover_disabled: hoverDisabled,
+        hover_image_url:
+          !hoverDisabled && hoverImageIndex !== null && images[hoverImageIndex]
+            ? images[hoverImageIndex].secure_url
+            : (!hoverDisabled && images.length > 1 ? images[1].secure_url : null),
+        images: finalCatalogImages.map((img, idx) => ({
           ...img,
           sort_order: idx + 1,
         })),
@@ -521,6 +613,9 @@ export default function AdminNewProductPage() {
                 color_hex: getValidColorHex(v.color_hex),
                 images: v.images && v.images.length > 0 ? v.images : [],
                 is_default: vIdx === effectiveDefaultIdx,
+                hover_disabled: Boolean(v.hover_disabled),
+                hover_image_url: !v.hover_disabled && v.hover_image_url ? v.hover_image_url : null,
+                hover_image_index: typeof v.hover_image_index === "number" ? v.hover_image_index : null,
               }))
             : [],
       };
@@ -539,13 +634,14 @@ export default function AdminNewProductPage() {
       setSuccessMsg("Product published successfully! Redirecting to catalog...");
       setTimeout(() => {
         router.push("/admin/items");
-      }, 1500);
+      }, 1200);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "An unexpected error occurred";
       setErrorMsg(msg);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -594,8 +690,40 @@ export default function AdminNewProductPage() {
       </div>
 
       {/* AMAZON-STYLE STEPPER TABS (1 Step at a time) */}
-      <div className="bg-white rounded-2xl border border-neutral-200/80 p-2 sm:p-3 shadow-xs">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="bg-white rounded-2xl border border-neutral-200/80 p-1.5 sm:p-3 shadow-xs">
+        {/* Mobile Step Strip (< md) */}
+        <div className="md:hidden grid grid-cols-4 gap-1 p-1 bg-neutral-50 rounded-xl border border-neutral-200/60">
+          {WIZARD_STEPS.map((step) => {
+            const isActive = currentStep === step.id;
+            const isCompleted = currentStep > step.id;
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => {
+                  if (validateStep(currentStep) || step.id < currentStep) {
+                    setCurrentStep(step.id);
+                  }
+                }}
+                className={`py-1.5 px-1 rounded-lg text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  isActive
+                    ? "bg-neutral-900 text-white shadow-xs font-bold"
+                    : isCompleted
+                    ? "bg-white text-emerald-700 font-semibold border border-emerald-200"
+                    : "text-neutral-500 hover:bg-white/80"
+                }`}
+              >
+                <span className="text-[9px] font-mono leading-none">Step {step.id}</span>
+                <span className="text-[10px] font-semibold leading-tight truncate w-full text-center">
+                  {step.id === 1 ? "Info" : step.id === 2 ? "Price" : step.id === 3 ? "Photos" : "Details"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Desktop Step Grid (>= md) */}
+        <div className="hidden md:grid md:grid-cols-4 gap-2">
           {WIZARD_STEPS.map((step) => {
             const isActive = currentStep === step.id;
             const isCompleted = currentStep > step.id;
@@ -1076,6 +1204,7 @@ export default function AdminNewProductPage() {
               type="file"
               ref={fileInputRef}
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handleFileSelect}
             />
@@ -1083,6 +1212,7 @@ export default function AdminNewProductPage() {
               type="file"
               ref={variantFileInputRef}
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handleVariantFileSelect}
             />
@@ -1090,176 +1220,170 @@ export default function AdminNewProductPage() {
             {/* ========================================== */}
             {/* MODE 1: SINGLE COLOR (NO VARIANTS)         */}
             {/* ========================================== */}
+            {/* ========================================== */}
+            {/* MODE 1: SINGLE COLOR (NO VARIANTS)         */}
+            {/* ========================================== */}
             {colorMode === "single" && (
               <div className="bg-white rounded-2xl border border-neutral-200/80 p-6 sm:p-8 shadow-xs space-y-6">
-                <div className="border-b border-neutral-100 pb-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
-                    Single Product Photography
-                  </span>
-                  <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
-                    Product Photos (Main &amp; Hover)
-                  </h2>
-                  <p className="text-xs text-neutral-500 font-light">
-                    Upload Slot 1 (Primary Catalog Photo) and Slot 2 (Interactive Hover Photo).
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Slot 0: Main Image */}
-                  <div
-                    className={`p-4 rounded-2xl border border-neutral-200 flex flex-col items-center justify-center min-h-[280px] relative overflow-hidden group ${
-                      images[0] ? "bg-white" : "bg-neutral-50/50"
-                    }`}
-                  >
-                    {images[0] ? (
-                      <>
-                        <Image
-                          src={images[0].secure_url}
-                          alt="Main view"
-                          fill
-                          className="object-contain p-2"
-                        />
-                        {/* Action buttons: visible on mobile, reveal on hover for desktop */}
-                        <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleOpenAdjust({
-                                type: "slot",
-                                slotIndex: 0,
-                                imageUrl: images[0].secure_url,
-                              })
-                            }
-                            className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm transition active:scale-95"
-                            title="Card Aspect Ratio & Floor Align Adjuster"
-                          >
-                            <Sliders className="w-3.5 h-3.5" />
-                            <span>Card Fit / Adjust</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetSlotToUpload(0);
-                              fileInputRef.current?.click();
-                            }}
-                            className="px-2.5 py-1.5 bg-white text-xs font-bold rounded-lg text-black hover:bg-neutral-100 cursor-pointer shadow-sm transition active:scale-95"
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(0)}
-                            className="p-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 cursor-pointer shadow-sm transition active:scale-95"
-                            title="Remove Photo"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
-                          Slot 1: Main Photo
-                        </span>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <div className="w-12 h-12 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center mx-auto mb-2 text-neutral-400">
-                          <Upload className="w-5 h-5" />
-                        </div>
-                        <p className="text-xs font-bold text-neutral-900">Upload Main Image *</p>
-                        <p className="text-[10.5px] text-neutral-400 mt-0.5">Primary storefront catalog view</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTargetSlotToUpload(0);
-                            fileInputRef.current?.click();
-                          }}
-                          disabled={uploadingSlot !== null}
-                          className="mt-3 px-4 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-black cursor-pointer shadow-sm"
-                        >
-                          {uploadingSlot === 0 ? "Uploading..." : "Browse Image"}
-                        </button>
-                      </div>
-                    )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#B89025]">
+                      Single Product Photography
+                    </span>
+                    <h2 className="text-lg font-bold text-neutral-950 font-serif mt-0.5">
+                      Product Photos &amp; Hover Reveal Controls
+                    </h2>
+                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                      Upload multiple gallery photos. Mark your <b>Main Photo</b> and <b>Hover Photo</b>, or turn Hover OFF.
+                    </p>
                   </div>
 
-                  {/* Slot 1: Hover Image */}
-                  <div
-                    className={`p-4 rounded-2xl border border-neutral-200 flex flex-col items-center justify-center min-h-[280px] relative overflow-hidden group ${
-                      images[1] ? "bg-white" : "bg-neutral-50/50"
-                    }`}
-                  >
-                    {images[1] ? (
-                      <>
+                  {/* Hover On / Off Toggle */}
+                  <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-xl self-start">
+                    <button
+                      type="button"
+                      onClick={() => setHoverDisabled(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        !hoverDisabled
+                          ? "bg-black text-white shadow-xs"
+                          : "text-neutral-600 hover:text-black"
+                      }`}
+                    >
+                      ✦ Hover ON
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHoverDisabled(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        hoverDisabled
+                          ? "bg-rose-600 text-white shadow-xs"
+                          : "text-neutral-600 hover:text-rose-600"
+                      }`}
+                    >
+                      ✕ Hover OFF (Zoom Only)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Photo Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {images.map((img, idx) => {
+                    const isMain = idx === 0;
+                    const isHover = !hoverDisabled && (hoverImageIndex === idx || (hoverImageIndex === null && idx === 1));
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`relative aspect-3/4 rounded-2xl overflow-hidden border transition-all group bg-white shadow-xs flex flex-col justify-between ${
+                          isMain
+                            ? "ring-2 ring-neutral-900 border-neutral-900"
+                            : isHover
+                            ? "ring-2 ring-amber-500 border-amber-500"
+                            : "border-neutral-200"
+                        }`}
+                      >
                         <Image
-                          src={images[1].secure_url}
-                          alt="Hover view"
+                          src={img.secure_url}
+                          alt={`Product view ${idx + 1}`}
                           fill
                           className="object-contain p-2"
                         />
-                        {/* Action buttons: visible on mobile, reveal on hover for desktop */}
-                        <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleOpenAdjust({
-                                type: "slot",
-                                slotIndex: 1,
-                                imageUrl: images[1].secure_url,
-                              })
-                            }
-                            className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm transition active:scale-95"
-                            title="Card Aspect Ratio & Floor Align Adjuster"
-                          >
-                            <Sliders className="w-3.5 h-3.5" />
-                            <span>Card Fit / Adjust</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetSlotToUpload(1);
-                              fileInputRef.current?.click();
-                            }}
-                            className="px-2.5 py-1.5 bg-white text-xs font-bold rounded-lg text-black hover:bg-neutral-100 cursor-pointer shadow-sm transition active:scale-95"
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(1)}
-                            className="p-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 cursor-pointer shadow-sm transition active:scale-95"
-                            title="Remove Photo"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+
+                        {/* Badges */}
+                        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                          {isMain && (
+                            <span className="px-2 py-0.5 rounded-md bg-neutral-950 text-white text-[9.5px] font-bold uppercase tracking-wider shadow-xs backdrop-blur-xs flex items-center gap-1">
+                              <span>★ Main</span>
+                            </span>
+                          )}
+                          {isHover && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[9.5px] font-bold uppercase tracking-wider shadow-xs backdrop-blur-xs flex items-center gap-1">
+                              <span>✦ Hover</span>
+                            </span>
+                          )}
+                          {!isMain && !isHover && (
+                            <span className="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-mono backdrop-blur-xs">
+                              #{idx + 1}
+                            </span>
+                          )}
                         </div>
-                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/75 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
-                          Slot 2: Hover Photo
-                        </span>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <div className="w-12 h-12 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center mx-auto mb-2 text-neutral-400">
-                          <Upload className="w-5 h-5" />
+
+                        {/* Overlay Controls */}
+                        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                          <div className="flex items-center gap-1">
+                            {!isMain && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetMainImage(idx)}
+                                className="flex-1 py-1 px-1 bg-white hover:bg-neutral-100 text-neutral-950 text-[10px] font-bold rounded cursor-pointer shadow-xs transition"
+                              >
+                                Set Main
+                              </button>
+                            )}
+                            {!isHover && !hoverDisabled && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetHoverImage(idx)}
+                                className="flex-1 py-1 px-1 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-[10px] font-bold rounded cursor-pointer shadow-xs transition"
+                              >
+                                Set Hover
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between gap-1 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenAdjust({
+                                  type: "slot",
+                                  slotIndex: idx,
+                                  imageUrl: img.secure_url,
+                                })
+                              }
+                              className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-white text-[10px] rounded cursor-pointer flex items-center gap-1"
+                              title="Card Fit"
+                            >
+                              <Sliders className="w-3 h-3" />
+                              <span>Fit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
+                              title="Delete photo"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-xs font-bold text-neutral-900">Upload Hover Image</p>
-                        <p className="text-[10.5px] text-neutral-400 mt-0.5">Smooth cursor-hover reveal view</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTargetSlotToUpload(1);
-                            fileInputRef.current?.click();
-                          }}
-                          disabled={uploadingSlot !== null}
-                          className="mt-3 px-4 py-2 bg-neutral-100 text-neutral-800 text-xs font-bold rounded-xl hover:bg-neutral-200 cursor-pointer border border-neutral-300 shadow-2xs"
-                        >
-                          {uploadingSlot === 1 ? "Uploading..." : "Browse Image"}
-                        </button>
                       </div>
+                    );
+                  })}
+
+                  {/* Add Photo Button Card */}
+                  <div
+                    onClick={() => {
+                      setTargetSlotToUpload(null);
+                      fileInputRef.current?.click();
+                    }}
+                    className="relative aspect-3/4 rounded-2xl border-2 border-dashed border-neutral-300 hover:border-black bg-neutral-50/70 hover:bg-neutral-100/60 flex flex-col items-center justify-center p-4 transition-all cursor-pointer group"
+                  >
+                    {uploadingSlot !== null ? (
+                      <Loader2 className="w-7 h-7 text-neutral-700 animate-spin" />
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-full bg-white border border-neutral-200 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform shadow-2xs">
+                          <Plus className="w-5 h-5 text-neutral-600 group-hover:text-black" />
+                        </div>
+                        <p className="text-xs font-bold text-neutral-900 text-center">Add Photo</p>
+                        <p className="text-[10px] text-neutral-400 text-center mt-0.5">Click to upload multiple</p>
+                      </>
                     )}
                   </div>
                 </div>
 
                 {/* Direct Image URL input */}
-                <div className="pt-2 flex items-center gap-2">
+                <div className="pt-2 border-t border-neutral-100 flex items-center gap-2">
                   <input
                     type="url"
                     value={manualUrlInput}
@@ -1294,7 +1418,7 @@ export default function AdminNewProductPage() {
                       Color Variants &amp; Dedicated Imagery
                     </h2>
                     <p className="text-xs text-neutral-500 font-light mt-0.5">
-                      Add each available shade. Mark your <b>Default Color</b> so its photos show on the storefront catalog cards!
+                      Add each available shade. For each color, upload multiple photos, choose hover photo or turn hover off.
                     </p>
                   </div>
                   <button
@@ -1323,11 +1447,12 @@ export default function AdminNewProductPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-5">
+                  <div className="space-y-6">
                     {colorVariants.map((variant, vIdx) => {
                       const safeHex = getValidColorHex(variant.color_hex);
                       const isUploadingThis = variantUploadingIndex === vIdx;
                       const isDefault = vIdx === defaultVariantIndex;
+                      const isVariantHoverOff = Boolean(variant.hover_disabled);
 
                       return (
                         <div
@@ -1338,7 +1463,7 @@ export default function AdminNewProductPage() {
                               : "bg-neutral-50/70 border-neutral-200"
                           }`}
                         >
-                          {/* Top Row: Default Status, Swatch, Name, Presets & Trash */}
+                          {/* Top Row: Default Status, Swatch, Name, Hover Toggle & Trash */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex flex-wrap items-center gap-3">
                               {/* Default Color Selector */}
@@ -1392,14 +1517,44 @@ export default function AdminNewProductPage() {
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveColorVariant(vIdx)}
-                              className="p-1.5 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer self-end sm:self-auto"
-                              title="Remove Variant"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Right: Hover Mode Toggle for this variant & Delete */}
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-neutral-200">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleVariantHoverOff(vIdx, false)}
+                                  className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition ${
+                                    !isVariantHoverOff
+                                      ? "bg-amber-500 text-white"
+                                      : "text-neutral-500 hover:text-black"
+                                  }`}
+                                  title="Turn hover reveal on for this color"
+                                >
+                                  ✦ Hover ON
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleVariantHoverOff(vIdx, true)}
+                                  className={`px-2.5 py-1 rounded text-[11px] font-bold cursor-pointer transition ${
+                                    isVariantHoverOff
+                                      ? "bg-rose-600 text-white"
+                                      : "text-neutral-500 hover:text-rose-600"
+                                  }`}
+                                  title="Turn hover reveal off (smooth zoom only) for this color"
+                                >
+                                  ✕ OFF
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveColorVariant(vIdx)}
+                                className="p-1.5 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                title="Remove Variant"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Quick Color Presets */}
@@ -1429,53 +1584,107 @@ export default function AdminNewProductPage() {
                           <div className="space-y-2 pt-2 border-t border-neutral-200/60">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-neutral-800 uppercase tracking-wider">
-                                Variant Photos ({variant.images?.length || 0})
+                                Photos for &ldquo;{variant.name || `Color ${vIdx + 1}`}&rdquo; ({variant.images?.length || 0})
                               </span>
                               <span className="text-[10.5px] text-neutral-500">
-                                Photo #1 = Main Catalog View, Photo #2 = Hover Reveal
+                                {isVariantHoverOff
+                                  ? "Hover is OFF for this shade (Cursor will only smooth zoom)"
+                                  : "Photo #1 = Main Catalog View, Hover Photo = Cursor Reveal"}
                               </span>
                             </div>
 
                             <div className="flex flex-wrap gap-3 items-center">
-                              {variant.images?.map((img, imgIdx) => (
-                                <div
-                                  key={imgIdx}
-                                  className="relative w-24 h-32 rounded-xl bg-white overflow-hidden border border-neutral-300 group shrink-0 shadow-xs"
-                                >
-                                  <Image src={img.secure_url} alt="" fill className="object-contain p-1" />
+                              {variant.images?.map((img, imgIdx) => {
+                                const isMain = imgIdx === 0;
+                                const isHover =
+                                  !isVariantHoverOff &&
+                                  (variant.hover_image_url === img.secure_url ||
+                                    (variant.hover_image_index === imgIdx) ||
+                                    (!variant.hover_image_url && variant.hover_image_index === undefined && imgIdx === 1));
 
-                                  {/* Mobile & Hover Action Overlay */}
-                                  <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleOpenAdjust({
-                                          type: "variant",
-                                          variantIndex: vIdx,
-                                          imageIndex: imgIdx,
-                                          imageUrl: img.secure_url,
-                                        })
-                                      }
-                                      className="p-1.5 bg-amber-400 hover:bg-amber-300 text-neutral-950 rounded-lg cursor-pointer shadow-sm transition active:scale-95"
-                                      title="Fit / Adjust to Card"
-                                    >
-                                      <Sliders className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
-                                      className="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer shadow-sm transition active:scale-95"
-                                      title="Remove Photo"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                return (
+                                  <div
+                                    key={imgIdx}
+                                    className={`relative w-24 h-32 rounded-xl bg-white overflow-hidden border group shrink-0 shadow-xs flex flex-col justify-between ${
+                                      isMain
+                                        ? "ring-2 ring-neutral-900 border-neutral-900"
+                                        : isHover
+                                        ? "ring-2 ring-amber-500 border-amber-500"
+                                        : "border-neutral-300"
+                                    }`}
+                                  >
+                                    <Image src={img.secure_url} alt="" fill className="object-contain p-1" />
+
+                                    {/* Badges */}
+                                    <div className="absolute top-1 left-1 flex flex-col gap-0.5 z-10">
+                                      {isMain && (
+                                        <span className="px-1.5 py-0.5 rounded bg-black text-amber-300 text-[8.5px] font-bold uppercase">
+                                          ★ Main
+                                        </span>
+                                      )}
+                                      {isHover && (
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-500 text-white text-[8.5px] font-bold uppercase">
+                                          ✦ Hover
+                                        </span>
+                                      )}
+                                      {!isMain && !isHover && (
+                                        <span className="px-1.5 py-0.5 rounded bg-black/75 text-white text-[8.5px] font-mono">
+                                          #{imgIdx + 1}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Action Overlay */}
+                                    <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                                      <div className="flex items-center gap-1">
+                                        {!isMain && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSetVariantMain(vIdx, imgIdx)}
+                                            className="flex-1 py-0.5 px-1 bg-white hover:bg-neutral-100 text-neutral-950 text-[9px] font-bold rounded cursor-pointer transition"
+                                          >
+                                            Main
+                                          </button>
+                                        )}
+                                        {!isHover && !isVariantHoverOff && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSetVariantHover(vIdx, imgIdx)}
+                                            className="flex-1 py-0.5 px-1 bg-amber-400 hover:bg-amber-300 text-neutral-950 text-[9px] font-bold rounded cursor-pointer transition"
+                                          >
+                                            Hover
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center justify-between gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleOpenAdjust({
+                                              type: "variant",
+                                              variantIndex: vIdx,
+                                              imageIndex: imgIdx,
+                                              imageUrl: img.secure_url,
+                                            })
+                                          }
+                                          className="p-1 bg-neutral-800 hover:bg-neutral-700 text-white rounded cursor-pointer"
+                                          title="Fit / Adjust to Card"
+                                        >
+                                          <Sliders className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveVariantImage(vIdx, imgIdx)}
+                                          className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
+                                          title="Remove Photo"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
-
-                                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-white text-[9px] font-mono font-bold backdrop-blur-xs">
-                                    {imgIdx === 0 ? "Slot 1" : imgIdx === 1 ? "Slot 2" : `#${imgIdx + 1}`}
-                                  </span>
-                                </div>
-                              ))}
+                                );
+                              })}
 
                               {/* Add Photo Button */}
                               <button
@@ -1507,7 +1716,7 @@ export default function AdminNewProductPage() {
                             <p className="text-[11px] text-amber-800 bg-amber-100/60 p-2.5 rounded-xl border border-amber-200/80 font-medium flex items-center gap-1.5">
                               <span>★</span>
                               <span>
-                                <b>Default Storefront Color:</b> Slot 1 &amp; Slot 2 photos of this shade will automatically be used for catalog listing cards, search results, and homepage collections.
+                                <b>Default Storefront Color:</b> Main &amp; Hover photos of this shade will automatically be used for catalog listing cards, search results, and homepage collections.
                               </span>
                             </p>
                           )}

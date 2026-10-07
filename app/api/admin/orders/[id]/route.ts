@@ -3,6 +3,8 @@ import { verifyAdminSession } from "@/lib/auth/session";
 import { getOrderById } from "@/lib/data/account";
 import { updateOrderAdmin } from "@/lib/data/orders";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

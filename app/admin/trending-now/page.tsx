@@ -17,7 +17,7 @@ import {
   ShoppingBag,
   Package,
 } from "lucide-react";
-import { TrendingNowItem } from "@/types";
+import { TrendingNowItem, ProductColorVariant } from "@/types";
 import { formatPrice } from "@/lib/utils";
 
 interface CatalogProduct {
@@ -30,11 +30,13 @@ interface CatalogProduct {
   image_url: string;
   category_name?: string;
   stock: number;
+  color_variants?: ProductColorVariant[];
 }
 
 export default function AdminTrendingNowPage() {
   const [trendingItems, setTrendingItems] = useState<TrendingNowItem[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+  const [selectedColorForProduct, setSelectedColorForProduct] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,6 +78,7 @@ export default function AdminTrendingNowPage() {
           image_url: imgUrl,
           category_name: p.categories?.[0]?.name,
           stock: Number(p.stock || 0),
+          color_variants: Array.isArray(p.color_variants) ? p.color_variants : [],
         };
       });
 
@@ -131,8 +134,16 @@ export default function AdminTrendingNowPage() {
           showFeedback("error", "Failed to remove item.");
         }
       } else {
-        // Add to Trending Now
+        // Add to Trending Now with selected color variant if available
         const nextOrder = trendingItems.length + 1;
+        const chosenIdx = selectedColorForProduct[product.id] ?? 0;
+        const chosenVariant = product.color_variants?.[chosenIdx];
+        const finalImg = chosenVariant?.images?.[0]?.secure_url || product.image_url;
+        const colorParam = chosenVariant?.name
+          ? `?color=${encodeURIComponent(chosenVariant.name.toLowerCase().trim())}`
+          : "";
+        const targetLink = `/product/${product.slug}${colorParam}`;
+
         const res = await fetch("/api/admin/trending-now", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -140,11 +151,11 @@ export default function AdminTrendingNowPage() {
             title: product.name,
             product_id: product.id,
             product_slug: product.slug,
-            image_url: product.image_url,
+            image_url: finalImg,
             alt_text: product.name,
             sort_order: nextOrder,
             is_active: true,
-            target_link: `/product/${product.slug}`,
+            target_link: targetLink,
           }),
         });
 
@@ -155,13 +166,51 @@ export default function AdminTrendingNowPage() {
           } else {
             loadData();
           }
-          showFeedback("success", `Added "${product.name}" to Trending Now!`);
+          const colorName = chosenVariant?.name ? ` (${chosenVariant.name})` : "";
+          showFeedback("success", `Added "${product.name}"${colorName} to Trending Now!`);
         } else {
           showFeedback("error", "Failed to add product to Trending Now.");
         }
       }
     } catch {
       showFeedback("error", "An error occurred while updating Trending Now.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Switch color variant for an existing item in Trending Now
+  const handleSwitchTrendingColor = async (item: TrendingNowItem, variant: ProductColorVariant) => {
+    try {
+      setActionLoadingId(item.id);
+      const varImg = variant.images?.[0]?.secure_url || item.image_url;
+      const cleanSlug = item.product_slug || (item.target_link ? item.target_link.replace("/product/", "").split("?")[0] : "");
+      const newTargetLink = cleanSlug && variant.name
+        ? `/product/${cleanSlug}?color=${encodeURIComponent(variant.name.toLowerCase().trim())}`
+        : item.target_link;
+
+      const res = await fetch("/api/admin/trending-now", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: item.id,
+          image_url: varImg,
+          target_link: newTargetLink,
+        }),
+      });
+
+      if (res.ok) {
+        setTrendingItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id ? { ...it, image_url: varImg, target_link: newTargetLink } : it
+          )
+        );
+        showFeedback("success", `Switched to "${variant.name}" for Trending card.`);
+      } else {
+        showFeedback("error", "Failed to update color.");
+      }
+    } catch {
+      showFeedback("error", "Network error updating color.");
     } finally {
       setActionLoadingId(null);
     }
@@ -309,6 +358,13 @@ export default function AdminTrendingNowPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
             {trendingItems.map((item, idx) => {
               const isLoading = actionLoadingId === item.id;
+              const matchedProduct = catalogProducts.find(
+                (p) =>
+                  p.id === item.product_id ||
+                  (p.slug && item.product_slug === p.slug) ||
+                  (p.slug && item.target_link?.includes(p.slug))
+              );
+              const colorVariants = matchedProduct?.color_variants || [];
 
               return (
                 <div
@@ -356,7 +412,48 @@ export default function AdminTrendingNowPage() {
                     {item.title || "DNORA Silhouette"}
                   </p>
 
-                  <div className="flex items-center justify-between pt-1">
+                  {/* Color variant picker for Trending item */}
+                  {colorVariants.length > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t border-neutral-200/70">
+                      <div className="flex items-center justify-between text-[9px] text-neutral-500 mb-1">
+                        <span>Color:</span>
+                        <span className="font-semibold text-neutral-800 truncate max-w-[80px]">
+                          {colorVariants.find((v) =>
+                            Boolean(
+                              (v.name && item.target_link?.toLowerCase().includes(v.name.toLowerCase())) ||
+                              (v.images?.[0]?.secure_url && item.image_url === v.images[0].secure_url)
+                            )
+                          )?.name || "Select"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {colorVariants.map((v, vIdx) => {
+                          const isSelected = Boolean(
+                            (v.name && item.target_link?.toLowerCase().includes(v.name.toLowerCase())) ||
+                            (v.images?.[0]?.secure_url && item.image_url === v.images[0].secure_url)
+                          );
+
+                          return (
+                            <button
+                              key={v.id || vIdx}
+                              type="button"
+                              onClick={() => handleSwitchTrendingColor(item, v)}
+                              disabled={isLoading}
+                              title={`Switch to ${v.name || `Color ${vIdx + 1}`}`}
+                              className={`w-4 h-4 rounded-full border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "ring-2 ring-neutral-900 ring-offset-1 scale-110 shadow-xs"
+                                  : "border-neutral-300 hover:scale-110 opacity-70 hover:opacity-100"
+                              }`}
+                              style={{ backgroundColor: v.color_hex || v.hex || "#1a1a1a" }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-2 mt-auto">
                     <span
                       className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded-full ${
                         item.is_active
@@ -441,26 +538,30 @@ export default function AdminTrendingNowPage() {
             {filteredProducts.map((product) => {
               const isTrending = isProductTrending(product.id, product.slug);
               const isActionLoading = actionLoadingId === product.id;
+              const hasColors = Boolean(product.color_variants && product.color_variants.length > 0);
+              const selectedVarIdx = selectedColorForProduct[product.id] ?? 0;
+              const currentVariant = hasColors ? product.color_variants![selectedVarIdx] : null;
+              const displayImage = currentVariant?.images?.[0]?.secure_url || product.image_url;
 
               return (
                 <div
                   key={product.id}
-                  className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                  className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
                     isTrending
                       ? "bg-amber-50/40 border-amber-300 shadow-xs"
                       : "bg-[#FAF9F6] border-neutral-200 hover:border-neutral-300"
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="relative w-14 h-15 rounded-lg overflow-hidden bg-white border border-neutral-200 shrink-0">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-neutral-200 shrink-0">
                       <Image
-                        src={product.image_url}
+                        src={displayImage}
                         alt={product.name}
                         fill
                         className="object-cover"
                       />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <h4 className="font-bold text-neutral-900 text-xs truncate" title={product.name}>
                         {product.name}
                       </h4>
@@ -473,31 +574,71 @@ export default function AdminTrendingNowPage() {
                     </div>
                   </div>
 
+                  {/* Color Selector for Purse */}
+                  {hasColors && (
+                    <div className="bg-white/80 p-2 rounded-lg border border-neutral-200/70">
+                      <div className="flex items-center justify-between text-[10px] mb-1.5">
+                        <span className="text-neutral-500 font-medium">Select Color:</span>
+                        <span className="font-bold text-neutral-900 truncate max-w-[120px]">
+                          {currentVariant?.name || `Color ${selectedVarIdx + 1}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {product.color_variants!.map((v, vIdx) => (
+                          <button
+                            key={v.id || vIdx}
+                            type="button"
+                            onClick={() => {
+                              setSelectedColorForProduct((prev) => ({ ...prev, [product.id]: vIdx }));
+                              // If already trending, immediately switch the trending item's color as well
+                              const trendingItem = getTrendingItem(product.id, product.slug);
+                              if (trendingItem) {
+                                handleSwitchTrendingColor(trendingItem, v);
+                              }
+                            }}
+                            title={v.name || `Color ${vIdx + 1}`}
+                            className={`w-4 h-4 rounded-full border transition-all cursor-pointer ${
+                              selectedVarIdx === vIdx
+                                ? "ring-2 ring-neutral-900 ring-offset-1 scale-110 shadow-xs"
+                                : "border-neutral-300 hover:scale-110 opacity-70 hover:opacity-100"
+                            }`}
+                            style={{ backgroundColor: v.color_hex || v.hex || "#1a1a1a" }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleProduct(product)}
-                    disabled={isActionLoading}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
-                      isTrending
-                        ? "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
-                        : "bg-neutral-900 hover:bg-black text-white"
-                    }`}
-                  >
-                    {isActionLoading ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : isTrending ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Trending</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-neutral-400 font-medium">
+                      {hasColors ? `${product.color_variants!.length} colors` : "1 color"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleProduct(product)}
+                      disabled={isActionLoading}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
+                        isTrending
+                          ? "bg-amber-600 hover:bg-amber-700 text-white shadow-2xs"
+                          : "bg-neutral-900 hover:bg-black text-white"
+                      }`}
+                    >
+                      {isActionLoading ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : isTrending ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Trending</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               );
             })}

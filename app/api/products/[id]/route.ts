@@ -6,23 +6,39 @@ import { revalidatePath } from "next/cache";
 import { ProductImage } from "@/types";
 import { ZodError } from "zod";
 
+export const dynamic = "force-dynamic";
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
-  const { id } = await params;
-  let product = await store.getProductById(id);
-  if (!product) {
-    product = await store.getProductBySlug(id);
+  try {
+    await store.ensureProductTableSchema();
+    const { id } = await params;
+    if (!id || typeof id !== "string") {
+      return NextResponse.json({ error: "Product identifier is required" }, { status: 400 });
+    }
+
+    let product = await store.getProductById(id);
+    if (!product) {
+      product = await store.getProductBySlug(id);
+    }
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    return NextResponse.json({ product });
+  } catch (err: unknown) {
+    console.error("GET /api/products/[id] error:", err);
+    return NextResponse.json(
+      { error: "Internal error retrieving product" },
+      { status: 500 }
+    );
   }
-  if (!product) {
-    return NextResponse.json({ error: "Product not found" }, { status: 404 });
-  }
-  return NextResponse.json({ product });
 }
 
 export async function PUT(req: NextRequest, { params }: RouteParams) {
+  await store.ensureProductTableSchema();
   const session = await verifyAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Heart,
   ShoppingBag,
@@ -33,14 +33,43 @@ interface ProductDetailsClientProps {
 
 export function ProductDetailsClient({ product, relatedProducts }: ProductDetailsClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const colorQuery = searchParams?.get("color")?.toLowerCase().trim();
+
   const { addItem, openCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
 
+  // Determine initial variant index based on URL color query
+  const initialVariantIndex = React.useMemo(() => {
+    if (!product.color_variants || product.color_variants.length === 0) return null;
+    if (colorQuery) {
+      const idx = product.color_variants.findIndex((v) => {
+        const vName = v.name?.toLowerCase().trim();
+        const vId = v.id?.toLowerCase().trim();
+        return (
+          vName === colorQuery ||
+          vId === colorQuery ||
+          (vName && colorQuery.includes(vName)) ||
+          (vName && vName.includes(colorQuery))
+        );
+      });
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  }, [product.color_variants, colorQuery]);
+
   // State
-  const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(
-    product.color_variants && product.color_variants.length > 0 ? 0 : null
-  );
+  const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(initialVariantIndex);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+
+  // Sync state if URL query param changes
+  React.useEffect(() => {
+    if (initialVariantIndex !== null && initialVariantIndex !== selectedColorIndex) {
+      setSelectedColorIndex(initialVariantIndex);
+      setActiveImageIndex(0);
+    }
+  }, [initialVariantIndex]);
+
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string>("details");
@@ -316,6 +345,13 @@ export function ProductDetailsClient({ product, relatedProducts }: ProductDetail
                         onClick={() => {
                           setSelectedColorIndex(idx);
                           setActiveImageIndex(0);
+                          if (variant.name && typeof window !== "undefined") {
+                            window.history.replaceState(
+                              null,
+                              "",
+                              `/product/${product.slug}?color=${encodeURIComponent(variant.name.toLowerCase().trim())}`
+                            );
+                          }
                         }}
                         title={variant.name || `Color option ${idx + 1}`}
                         aria-label={variant.name ? `Select color ${variant.name}` : `Select color option ${idx + 1}`}

@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { slugify } from "@/lib/utils";
 import { ZodError } from "zod";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || undefined;
@@ -49,6 +51,37 @@ export async function POST(req: NextRequest) {
       validated.sku && validated.sku.trim()
         ? validated.sku.trim()
         : `DNR-${Date.now().toString(36).toUpperCase()}`;
+
+    // Prevent double submission / duplicate creation:
+    // 1. If product with exact SKU exists, return it if created recently (idempotency)
+    if (finalSku) {
+      const existingSkuCheck = await store.getProducts({ search: finalSku });
+      const exactSkuMatch = existingSkuCheck.find(
+        (p) => p.sku?.toUpperCase() === finalSku.toUpperCase()
+      );
+      if (exactSkuMatch) {
+        return NextResponse.json(
+          { success: true, product: exactSkuMatch, deduplicated: true },
+          { status: 200 }
+        );
+      }
+    }
+
+    // 2. Prevent rapid double-clicks (same name & price created within last 15 seconds)
+    const recentProducts = await store.getProducts({ search: validated.name.trim() });
+    const duplicateRecent = recentProducts.find((p) => {
+      const isSameName = p.name.trim().toLowerCase() === validated.name.trim().toLowerCase();
+      const isSamePrice = Number(p.price) === Number(validated.price);
+      const isRecent = p.created_at ? (Date.now() - new Date(p.created_at).getTime()) < 15000 : false;
+      return isSameName && isSamePrice && isRecent;
+    });
+
+    if (duplicateRecent) {
+      return NextResponse.json(
+        { success: true, product: duplicateRecent, deduplicated: true },
+        { status: 200 }
+      );
+    }
 
     let finalImages = validated.images;
     if (!finalImages || finalImages.length === 0) {

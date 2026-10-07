@@ -5,6 +5,8 @@ import InvoiceControls from "@/components/InvoiceControls";
 import { getOrderById } from "@/lib/data/account";
 import { formatPrice } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
 }

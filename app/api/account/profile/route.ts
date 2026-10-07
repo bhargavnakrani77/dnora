@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserSession, createUserSession } from "@/lib/auth/user-session";
 import { updateUserProfile } from "@/lib/data/account";
 
+export const dynamic = "force-dynamic";
+
 export async function PUT(req: NextRequest) {
   const session = await getUserSession();
   if (!session) {

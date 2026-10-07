@@ -381,6 +381,8 @@ class DataStore {
             : Array.isArray(row.color_variants)
             ? row.color_variants
             : [],
+        hover_image_url: row.hover_image_url || null,
+        hover_disabled: Boolean(row.hover_disabled),
         categories: Array.isArray(row.categories) ? row.categories : [],
       }));
 
@@ -478,6 +480,8 @@ class DataStore {
             : Array.isArray(row.color_variants)
             ? row.color_variants
             : [],
+        hover_image_url: row.hover_image_url || null,
+        hover_disabled: Boolean(row.hover_disabled),
         categories: Array.isArray(row.categories) ? row.categories : [],
       };
     } catch (err) {
@@ -544,6 +548,8 @@ class DataStore {
             : Array.isArray(row.color_variants)
             ? row.color_variants
             : [],
+        hover_image_url: row.hover_image_url || null,
+        hover_disabled: Boolean(row.hover_disabled),
         categories: Array.isArray(row.categories) ? row.categories : [],
       };
     } catch (err) {
@@ -621,23 +627,48 @@ class DataStore {
     }
   }
 
+  async ensureProductTableSchema(): Promise<void> {
+    try {
+      await db.query(`
+        ALTER TABLE public.products 
+        ADD COLUMN IF NOT EXISTS color_variants JSONB DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS craftsmanship_details TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS craftsmanship_heading TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS craftsmanship_mode TEXT DEFAULT 'bullets',
+        ADD COLUMN IF NOT EXISTS shipping_customs TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS shipping_heading TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS shipping_mode TEXT DEFAULT 'text',
+        ADD COLUMN IF NOT EXISTS leather_care TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS leather_heading TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS leather_mode TEXT DEFAULT 'text',
+        ADD COLUMN IF NOT EXISTS hover_image_url TEXT DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS hover_disabled BOOLEAN DEFAULT FALSE;
+      `);
+    } catch {
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS color_variants JSONB DEFAULT '[]'::jsonb;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_details TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_heading TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_mode TEXT DEFAULT 'bullets';`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_customs TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_heading TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_mode TEXT DEFAULT 'text';`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_care TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_heading TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_mode TEXT DEFAULT 'text';`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS hover_image_url TEXT DEFAULT NULL;`).catch(() => {});
+      await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS hover_disabled BOOLEAN DEFAULT FALSE;`).catch(() => {});
+    }
+  }
+
   async createProduct(data: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> {
     const rawSlug = data.slug?.trim() ? data.slug : data.name;
     let slug = await this.ensureUniqueProductSlug(rawSlug);
     const sku = await this.ensureUniqueProductSku(data.sku);
 
-    // Ensure color_variants, cost_price, and detail columns exist
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS color_variants JSONB DEFAULT '[]'::jsonb;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_details TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_heading TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS craftsmanship_mode TEXT DEFAULT 'bullets';`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_customs TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_heading TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS shipping_mode TEXT DEFAULT 'text';`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_care TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_heading TEXT DEFAULT NULL;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS leather_mode TEXT DEFAULT 'text';`).catch(() => {});
+    // Ensure all dynamic columns exist
+    await this.ensureProductTableSchema();
 
     let attempts = 0;
     let res;
@@ -645,8 +676,8 @@ class DataStore {
       try {
         res = await db.query(
           `INSERT INTO public.products 
-            (name, slug, short_description, description, price, compare_at_price, cost_price, sku, stock, status, color_variants, craftsmanship_heading, craftsmanship_details, craftsmanship_mode, shipping_heading, shipping_customs, shipping_mode, leather_heading, leather_care, leather_mode)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            (name, slug, short_description, description, price, compare_at_price, cost_price, sku, stock, status, color_variants, craftsmanship_heading, craftsmanship_details, craftsmanship_mode, shipping_heading, shipping_customs, shipping_mode, leather_heading, leather_care, leather_mode, hover_image_url, hover_disabled)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
            RETURNING *`,
           [
             data.name,
@@ -669,6 +700,8 @@ class DataStore {
             data.leather_heading || null,
             data.leather_care || null,
             data.leather_mode || "text",
+            data.hover_image_url || null,
+            Boolean(data.hover_disabled),
           ]
         );
         break;
@@ -724,8 +757,7 @@ class DataStore {
   }
 
   async updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS color_variants JSONB DEFAULT '[]'::jsonb;`).catch(() => {});
-    await db.query(`ALTER TABLE public.products ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10, 2) DEFAULT NULL;`).catch(() => {});
+    await this.ensureProductTableSchema();
 
     const fields: string[] = [];
     const values: (string | number | boolean | null)[] = [];
@@ -746,7 +778,8 @@ class DataStore {
       "craftsmanship_heading", "craftsmanship_details", "craftsmanship_mode",
       "shipping_heading", "shipping_customs", "shipping_mode",
       "leather_heading", "leather_care", "leather_mode",
-      "price", "compare_at_price", "cost_price", "sku", "stock", "status"
+      "price", "compare_at_price", "cost_price", "sku", "stock", "status",
+      "hover_image_url", "hover_disabled"
     ];
     for (const col of prodCols) {
       const val = updates[col];
@@ -769,7 +802,17 @@ class DataStore {
     if (fields.length > 0) {
       fields.push(`updated_at = now()`);
       values.push(id);
-      await db.query(`UPDATE public.products SET ${fields.join(", ")} WHERE id = $${i}`, values);
+      try {
+        await db.query(`UPDATE public.products SET ${fields.join(", ")} WHERE id = $${i}`, values);
+      } catch (err: unknown) {
+        const pgErr = err as { message?: string };
+        if (pgErr?.message?.includes("does not exist")) {
+          await this.ensureProductTableSchema();
+          await db.query(`UPDATE public.products SET ${fields.join(", ")} WHERE id = $${i}`, values);
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Images

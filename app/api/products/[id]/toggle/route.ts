@@ -3,6 +3,8 @@ import { store } from "@/lib/data/store";
 import { verifyAdminSession } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 
+export const dynamic = "force-dynamic";
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }

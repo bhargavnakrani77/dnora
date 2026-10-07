@@ -45,25 +45,7 @@ export function ProductCard({
     product.color_variants?.[0]?.images?.[0]?.secure_url ||
     "";
 
-  // Fallback chain for hover image (supports product.images and color_variants)
-  let hoverImage = "";
-  if (product.images && product.images.length > 1 && product.images[1]?.secure_url) {
-    hoverImage = product.images[1].secure_url;
-  } else if (
-    product.color_variants?.[0]?.images &&
-    product.color_variants[0].images.length > 1 &&
-    product.color_variants[0].images[1]?.secure_url
-  ) {
-    hoverImage = product.color_variants[0].images[1].secure_url;
-  } else if (
-    product.color_variants &&
-    product.color_variants.length > 1 &&
-    product.color_variants[1]?.images?.[0]?.secure_url
-  ) {
-    hoverImage = product.color_variants[1].images[0].secure_url;
-  }
-
-  // Active image based on selected color variant
+  // Active variant based on selected color variant index
   const activeVariant =
     selectedVariantIndex !== null && product.color_variants && product.color_variants[selectedVariantIndex]
       ? product.color_variants[selectedVariantIndex]
@@ -72,10 +54,55 @@ export function ProductCard({
   const currentDisplayImage =
     activeVariant?.images?.[0]?.secure_url || primaryImage;
 
-  const currentHoverImage =
-    activeVariant && activeVariant.images?.[1]?.secure_url
-      ? activeVariant.images[1].secure_url
-      : hoverImage || currentDisplayImage;
+  // Hover image logic: STRICTLY bound to active color variant or product images
+  // NEVER fall back to a different color's image!
+  let currentHoverImage = "";
+
+  if (activeVariant) {
+    // If user clicked or selected a specific color variant:
+    if (activeVariant.hover_disabled) {
+      currentHoverImage = ""; // Hover explicitly turned off
+    } else if (activeVariant.hover_image_url) {
+      currentHoverImage = activeVariant.hover_image_url;
+    } else if (
+      typeof activeVariant.hover_image_index === "number" &&
+      activeVariant.images?.[activeVariant.hover_image_index]?.secure_url
+    ) {
+      currentHoverImage = activeVariant.images[activeVariant.hover_image_index].secure_url;
+    } else if (activeVariant.images && activeVariant.images.length > 1 && activeVariant.images[1]?.secure_url) {
+      currentHoverImage = activeVariant.images[1].secure_url;
+    } else {
+      // ONLY 1 IMAGE IN THIS COLOR VARIANT: NO HOVER IMAGE SWAP, ONLY SMOOTH ZOOM!
+      currentHoverImage = "";
+    }
+  } else if (product.color_variants && product.color_variants.length > 0) {
+    // Default color variant shown on storefront before any swatch is clicked:
+    const defaultVar = product.color_variants.find((v) => v.is_default) || product.color_variants[0];
+    if (defaultVar?.hover_disabled) {
+      currentHoverImage = "";
+    } else if (defaultVar?.hover_image_url) {
+      currentHoverImage = defaultVar.hover_image_url;
+    } else if (
+      typeof defaultVar?.hover_image_index === "number" &&
+      defaultVar.images?.[defaultVar.hover_image_index]?.secure_url
+    ) {
+      currentHoverImage = defaultVar.images[defaultVar.hover_image_index].secure_url;
+    } else if (defaultVar?.images && defaultVar.images.length > 1 && defaultVar.images[1]?.secure_url) {
+      currentHoverImage = defaultVar.images[1].secure_url;
+    } else {
+      // ONLY 1 IMAGE IN DEFAULT VARIANT: NO HOVER IMAGE SWAP, ONLY SMOOTH ZOOM!
+      currentHoverImage = "";
+    }
+  } else {
+    // Single product (no color variants)
+    if (product.hover_disabled) {
+      currentHoverImage = "";
+    } else if (product.hover_image_url) {
+      currentHoverImage = product.hover_image_url;
+    } else if (product.images && product.images.length > 1 && product.images[1]?.secure_url) {
+      currentHoverImage = product.images[1].secure_url;
+    }
+  }
 
   const optimizedDisplayImage = currentDisplayImage ? getProductCardUrl(currentDisplayImage) : "";
   const optimizedHoverImage = currentHoverImage ? getProductCardUrl(currentHoverImage) : "";
@@ -88,7 +115,7 @@ export function ProductCard({
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addItem(product, 1);
+    addItem(product, 1, activeVariant || undefined);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -102,11 +129,19 @@ export function ProductCard({
   const hasHoverImage =
     Boolean(currentHoverImage) && currentHoverImage !== currentDisplayImage;
 
+  // Active product link with selected color variant query param
+  const productHref = React.useMemo(() => {
+    if (activeVariant?.name) {
+      return `/product/${product.slug}?color=${encodeURIComponent(activeVariant.name.toLowerCase().trim())}`;
+    }
+    return `/product/${product.slug}`;
+  }, [product.slug, activeVariant]);
+
   return (
     <div className={cn("h-full w-full flex flex-col justify-between bg-white relative", className)}>
       {/* Product Image Frame with Smooth Rounded Edges — scoped with group/image so hover triggers ONLY on image */}
       <div className="group/image relative aspect-3/4 rounded-xl overflow-hidden bg-[#FAF8F5] border border-neutral-200/70 shrink-0">
-        <Link href={`/product/${product.slug}`} className="block relative w-full h-full">
+        <Link href={productHref} className="block relative w-full h-full">
           {optimizedDisplayImage ? (
             <Image
               src={optimizedDisplayImage}
@@ -227,7 +262,7 @@ export function ProductCard({
           </div>
 
           <Link
-            href={`/product/${product.slug}`}
+            href={productHref}
             className="block text-xs sm:text-[13px] font-semibold tracking-wider uppercase text-neutral-900 hover:text-black line-clamp-1 transition-colors min-h-[18px]"
           >
             {product.name}

@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { SEED_PRODUCTS } from "@/lib/data/seed-data";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 
+export const dynamic = "force-dynamic";
+
 const orderItemSchema = z.object({
   productId: z.string().optional(),
   productName: z.string().optional(),

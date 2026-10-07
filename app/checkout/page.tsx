@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -110,6 +110,7 @@ export default function CheckoutPage() {
   // Flow & Submission state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
   const [orderError, setOrderError] = useState("");
 
   // Apply a saved address to form
@@ -281,7 +282,8 @@ export default function CheckoutPage() {
 
   // Step 3 Fast/Instant Payment & Place Order (No artificial delays & double-click protected)
   const handlePlaceOrder = async () => {
-    if (isProcessing) return;
+    if (isProcessingRef.current || isProcessing) return;
+    isProcessingRef.current = true;
     setOrderError("");
     setIsProcessing(true);
 
@@ -342,6 +344,7 @@ export default function CheckoutPage() {
         setOrderError(msg);
       }
       setIsProcessing(false);
+      isProcessingRef.current = false;
     } finally {
       clearTimeout(timeoutId);
     }

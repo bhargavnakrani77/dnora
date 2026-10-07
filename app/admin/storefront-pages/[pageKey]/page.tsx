@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft,
   ExternalLink,
@@ -32,13 +32,26 @@ interface PageProps {
 
 const PAGES_META: Record<
   string,
-  { label: string; storefrontUrl: string; icon: React.ElementType; defaultBadge: string; description: string }
+  {
+    label: string;
+    storefrontUrl: string;
+    icon: React.ElementType;
+    defaultBadge: string;
+    defaultTitle: string;
+    defaultSubtitle: string;
+    defaultDescription: string;
+    description: string;
+  }
 > = {
   bestseller: {
     label: "Best Sellers",
     storefrontUrl: "/bestseller",
     icon: Flame,
     defaultBadge: "Curated Icons",
+    defaultTitle: "BEST SELLERS",
+    defaultSubtitle: "Most coveted artisanal silhouettes and iconic silhouettes.",
+    defaultDescription:
+      "Explore the most coveted DNORA silhouettes. Handcrafted from full-grain Florentine calfskin with palladium-finished custom hardware, these iconic pieces represent the pinnacle of modern discipline.",
     description: "Manage the hero headline, editorial story, and curated products showcased on your Best Sellers page.",
   },
   "new-in": {
@@ -46,6 +59,10 @@ const PAGES_META: Record<
     storefrontUrl: "/new-in",
     icon: Clock,
     defaultBadge: "Seasonal Arrivals",
+    defaultTitle: "NEW IN",
+    defaultSubtitle: "Latest drops and architectural silhouettes fresh from the atelier.",
+    defaultDescription:
+      "Discover the newest seasonal drops from the DNORA Florence atelier. Contemporary silhouettes engineered with precision craftsmanship and sustainably-sourced Italian calfskin.",
     description: "Manage the seasonal drops, craftsmanship narrative, and new arrival products on your New In page.",
   },
   "trending-now": {
@@ -53,13 +70,19 @@ const PAGES_META: Record<
     storefrontUrl: "/trending-now",
     icon: Sparkles,
     defaultBadge: "Trending Collection",
+    defaultTitle: "TRENDING NOW",
+    defaultSubtitle: "Curated visual edits and architectural silhouettes.",
+    defaultDescription:
+      "Curated visual edits and architectural silhouettes capturing this season's most sought-after luxury handbag aesthetics. Each piece is handcrafted in limited runs from full-grain Italian leather.",
     description: "Manage the trending lookbook title, description narrative, and featured trending silhouettes.",
   },
 };
 
 export default function AdminStorefrontPageEditor({ params }: PageProps) {
   const router = useRouter();
-  const { pageKey } = use(params);
+  const urlParams = useParams();
+  const rawKey = (urlParams?.pageKey as string) || (params ? use(params).pageKey : "bestseller");
+  const pageKey = rawKey || "bestseller";
 
   const activeKey = PAGES_META[pageKey] ? pageKey : "bestseller";
   const currentMeta = PAGES_META[activeKey];
@@ -106,10 +129,10 @@ export default function AdminStorefrontPageEditor({ params }: PageProps) {
           setAllProducts(prods);
 
           if (p) {
-            setTitle(p.title || currentMeta.label.toUpperCase());
+            setTitle(p.title || currentMeta.defaultTitle);
             setBadgeLabel(p.badge_label || currentMeta.defaultBadge);
-            setSubtitle(p.subtitle || "");
-            setDescription(p.description || "");
+            setSubtitle(p.subtitle || currentMeta.defaultSubtitle);
+            setDescription(p.description || currentMeta.defaultDescription);
             setBannerImageUrl(p.banner_image_url || "");
             setBannerHeadline(p.banner_headline || "");
             setBannerSubheadline(p.banner_subheadline || "");
@@ -133,8 +156,10 @@ export default function AdminStorefrontPageEditor({ params }: PageProps) {
               }
             }
           } else {
-            setTitle(currentMeta.label.toUpperCase());
+            setTitle(currentMeta.defaultTitle);
             setBadgeLabel(currentMeta.defaultBadge);
+            setSubtitle(currentMeta.defaultSubtitle);
+            setDescription(currentMeta.defaultDescription);
             setFeaturedProductIds(prods.slice(0, 6).map((x) => x.id));
           }
         } else {

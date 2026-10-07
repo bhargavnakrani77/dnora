@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ export default function NewCategoryPage() {
   const [isInCollections, setIsInCollections] = useState(true);
 
   const [saving, setSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -90,11 +91,14 @@ export default function NewCategoryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingRef.current || saving) return;
+
     if (!name.trim()) {
       showStatus("error", "Category name is required.");
       return;
     }
 
+    isSavingRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -126,6 +130,7 @@ export default function NewCategoryPage() {
       showStatus("error", "Server communication error");
     } finally {
       setSaving(false);
+      isSavingRef.current = false;
     }
   };
 

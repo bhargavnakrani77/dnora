@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { store } from "@/lib/data/store";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,6 +52,15 @@ export async function PUT(req: NextRequest) {
       is_active: body.is_active !== undefined ? Boolean(body.is_active) : true,
       featured_product_ids: Array.isArray(body.featured_product_ids) ? body.featured_product_ids : [],
     });
+
+    try {
+      revalidatePath("/bestseller");
+      revalidatePath("/new-in");
+      revalidatePath("/trending-now");
+      revalidatePath("/");
+    } catch {
+      // ignore
+    }
 
     return NextResponse.json({
       success: true,

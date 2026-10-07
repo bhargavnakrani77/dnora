@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserSession } from "@/lib/auth/user-session";
 import { getUserAddresses, createUserAddress } from "@/lib/data/account";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await getUserSession();
   if (!session) {

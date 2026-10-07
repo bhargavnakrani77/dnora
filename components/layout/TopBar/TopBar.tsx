@@ -64,6 +64,38 @@ const LUXURY_NAV_CATEGORIES: NavCategory[] = [
     },
   },
   {
+    id: "nav-bestsellers",
+    label: "BEST SELLERS",
+    href: "/bestseller",
+    badge: "Hot",
+    subcategories: [
+      {
+        title: "MOST COVETED",
+        items: [
+          { label: "View All Best Sellers", href: "/bestseller" },
+          { label: "Trending Now Silhouettes", href: "/trending-now", badge: "Hot" },
+          { label: "Iconic Handbags", href: "/category/handbags" },
+          { label: "Sculptural Shoulder Bags", href: "/category/shoulder-bags" },
+          { label: "Everyday Luxury Totes", href: "/category/new-one" },
+        ],
+      },
+      {
+        title: "CLIENT FAVORITES",
+        items: [
+          { label: "New Arrival Drop", href: "/new-in", badge: "New" },
+          { label: "Explore All Handbags", href: "/shop" },
+        ],
+      },
+    ],
+    featuredCard: {
+      title: "ICONIC BESTSELLERS",
+      subtitle: "Our most acclaimed luxury silhouettes, coveted and loved worldwide.",
+      image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=700&q=85",
+      href: "/bestseller",
+      cta: "Shop Best Sellers",
+    },
+  },
+  {
     id: "nav-handbags",
     label: "HANDBAGS",
     href: "/shop",

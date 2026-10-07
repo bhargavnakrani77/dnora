@@ -138,6 +138,37 @@ export function TopBarMobileDrawer({
             </button>
           </div>
 
+          {/* Quick Highlight Links: Best Sellers & New In */}
+          <div className="px-6 py-3 bg-neutral-50/70 border-b border-neutral-100 grid grid-cols-2 gap-2.5">
+            <Link
+              href="/bestseller"
+              onClick={onClose}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-neutral-200/80 shadow-2xs hover:border-black transition-all group"
+            >
+              <div className="flex flex-col">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-neutral-900 group-hover:text-black">
+                  Best Sellers
+                </span>
+                <span className="text-[9px] text-[#B89025] font-semibold">★ Iconic Pieces</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-neutral-400 group-hover:text-black group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            <Link
+              href="/new-in"
+              onClick={onClose}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-neutral-200/80 shadow-2xs hover:border-black transition-all group"
+            >
+              <div className="flex flex-col">
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-neutral-900 group-hover:text-black">
+                  New In
+                </span>
+                <span className="text-[9px] text-amber-600 font-semibold">✦ Autumn Drop</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-neutral-400 group-hover:text-black group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
+
           {/* Navigation Categories Accordion - Entire item clickable */}
           <div className="flex-1 overflow-y-auto px-6 py-3 divide-y divide-neutral-100">
             {navCategories.map((cat) => {

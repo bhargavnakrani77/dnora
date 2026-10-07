@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { store } from "@/lib/data/store";
 import { ProductDetailsClient } from "@/components/ProductDetailsClient";
 
+export const dynamic = "force-dynamic";
+
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
 }

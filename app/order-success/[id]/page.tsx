@@ -6,6 +6,8 @@ import { getOrderById } from "@/lib/data/account";
 import { formatPrice } from "@/lib/utils";
 import InvoicePrintButton from "@/components/InvoicePrintButton";
 
+export const dynamic = "force-dynamic";
+
 interface OrderSuccessPageProps {
   params: Promise<{ id: string }>;
 }

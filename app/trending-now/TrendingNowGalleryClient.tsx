@@ -22,8 +22,8 @@ export function TrendingNowGalleryClient({ items }: TrendingNowGalleryClientProp
   }
 
   const getProductLink = (item: TrendingNowItem) => {
-    if (item.product_slug) return `/product/${item.product_slug}`;
     if (item.target_link && item.target_link.trim()) return item.target_link.trim();
+    if (item.product_slug) return `/product/${item.product_slug}`;
     return null;
   };
 

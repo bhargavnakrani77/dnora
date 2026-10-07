@@ -4,6 +4,8 @@ import { verifyAdminSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const items = await store.getTrendingNowItems(false);
