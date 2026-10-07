@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { AnnouncementConfig } from "@/types";
 import { LiveVisitorHeartbeat } from "@/components/LiveVisitorHeartbeat";
 import { cookies, headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -251,6 +252,7 @@ export default async function RootLayout({
             <CartDrawer />
           </CartProvider>
         </WishlistProvider>
+        <Analytics />
       </body>
     </html>
   );
