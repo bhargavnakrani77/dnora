@@ -16,7 +16,6 @@ import {
   ShoppingBag,
   Sparkles,
   Loader2,
-  Plus,
   QrCode,
   Smartphone,
   Building2,
@@ -25,6 +24,12 @@ import {
 } from "lucide-react";
 import { useCart } from "@/lib/store/cart-store";
 import { formatPrice } from "@/lib/utils";
+import {
+  loadRazorpayScript,
+  RazorpayFailureResponse,
+} from "@/components/RazorpayCheckoutButton";
+
+
 
 interface SavedAddress {
   id: string;
@@ -280,13 +285,172 @@ export default function CheckoutPage() {
   const shippingCost = baseShippingRate + activeCodFee;
   const grandTotal = subtotal + shippingCost;
 
-  // Step 3 Fast/Instant Payment & Place Order (No artificial delays & double-click protected)
+  // Step 3 Payment & Place Order (Razorpay Standard Web Checkout for Online & Direct for COD)
   const handlePlaceOrder = async () => {
     if (isProcessingRef.current || isProcessing) return;
     isProcessingRef.current = true;
     setOrderError("");
     setIsProcessing(true);
 
+    // Online Payments (UPI / Cards / Net Banking) via Razorpay Standard Checkout
+    if (paymentMethod !== "cod") {
+      try {
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded || !window.Razorpay) {
+          throw new Error("Unable to load Razorpay payment gateway SDK. Please check your network connection.");
+        }
+
+
+        // STEP 1: Call /api/create-order
+        const createRes = await fetch("/api/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Math.round(grandTotal * 100),
+            currency: "INR",
+            receipt: `rcpt_${Date.now()}`,
+            notes: {
+              customer_name: fullName,
+              customer_email: email || currentUser?.email || "",
+            },
+          }),
+        });
+
+        const orderData = await createRes.json().catch(() => null);
+        if (!createRes.ok || !orderData?.order_id) {
+          throw new Error(orderData?.error || "Failed to initialize Razorpay payment order.");
+        }
+
+        const keyId =
+          process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_Tn2hLkLFDVYPjU";
+
+        // STEP 2: Open Razorpay modal with order_id
+        const options = {
+          key: keyId,
+          amount: orderData.amount,
+          currency: orderData.currency || "INR",
+          name: "DNORA Luxury Atelier",
+          description: "Order Checkout Payment",
+          image: "/favicon.ico",
+          order_id: orderData.order_id,
+          prefill: {
+            name: fullName,
+            email: email || currentUser?.email || "",
+            contact: phone,
+          },
+          theme: {
+            color: "#0E0E0E",
+          },
+          modal: {
+            ondismiss: function () {
+              setIsProcessing(false);
+              isProcessingRef.current = false;
+              setOrderError("Payment was cancelled. You can retry when ready.");
+            },
+          },
+          handler: async function (response: {
+            razorpay_payment_id: string;
+            razorpay_order_id: string;
+            razorpay_signature: string;
+          }) {
+            try {
+              // STEP 3: Verify Signature via /api/verify-payment
+              const verifyRes = await fetch("/api/verify-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+
+              const verifyData = await verifyRes.json().catch(() => null);
+              if (!verifyRes.ok || !verifyData?.success) {
+                setOrderError(
+                  verifyData?.error || "Payment verification failed: signature mismatch."
+                );
+                setIsProcessing(false);
+                isProcessingRef.current = false;
+                return;
+              }
+
+              // Payment signature verified! Now finalize the order in the database
+              const res = await fetch("/api/orders/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customerName: fullName,
+                  customerEmail: email || currentUser?.email,
+                  customerPhone: phone,
+                  shippingAddress: {
+                    fullName,
+                    phone,
+                    addressLine1,
+                    addressLine2,
+                    city,
+                    state,
+                    postalCode,
+                    country,
+                  },
+                  items,
+                  paymentMethod,
+                  shippingCost,
+                  notes: `Razorpay Payment ID: ${response.razorpay_payment_id} | Order ID: ${response.razorpay_order_id}`,
+                }),
+              });
+
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                throw new Error(data.error || "Failed to record order in system.");
+              }
+
+              clearCart();
+
+              setConfirmedOrder({
+                orderNumber: data.order.order_number,
+                totalAmount: data.order.total_amount || grandTotal,
+                customerName: fullName,
+                city: city,
+              });
+
+              setTimeout(() => {
+                router.push(`/order-success/${data.order.order_number}`);
+              }, 1800);
+            } catch (err: unknown) {
+              console.error("Post-verification order saving error:", err);
+              const msg = err instanceof Error ? err.message : "Failed to record order after payment.";
+              setOrderError(msg);
+              setIsProcessing(false);
+              isProcessingRef.current = false;
+            }
+          },
+        };
+
+        const razorpayInstance = new window.Razorpay(options);
+
+        razorpayInstance.on("payment.failed", function (failResp: RazorpayFailureResponse) {
+          console.error("Razorpay Payment Failed:", failResp?.error);
+          const desc = failResp?.error?.description || "Payment failed. Please try again.";
+          setOrderError(`Payment Failed: ${desc}`);
+          setIsProcessing(false);
+          isProcessingRef.current = false;
+        });
+
+
+        razorpayInstance.open();
+        return;
+      } catch (err: unknown) {
+        console.error("Razorpay Checkout Initialization Error:", err);
+        const msg = err instanceof Error ? err.message : "An unexpected error occurred. Please try again.";
+        setOrderError(msg);
+        setIsProcessing(false);
+        isProcessingRef.current = false;
+        return;
+      }
+    }
+
+    // Cash On Delivery (COD) Flow
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout to prevent infinite spinner
 
@@ -336,7 +500,7 @@ export default function CheckoutPage() {
         router.push(`/order-success/${data.order.order_number}`);
       }, 1800);
     } catch (err: unknown) {
-      console.error("Payment error:", err);
+      console.error("COD Payment error:", err);
       if (err instanceof DOMException && err.name === "AbortError") {
         setOrderError("The order request timed out. Please check your network connection and try again.");
       } else {
@@ -349,6 +513,7 @@ export default function CheckoutPage() {
       clearTimeout(timeoutId);
     }
   };
+
 
   if (loadingUser) {
     return (
@@ -1151,7 +1316,8 @@ export default function CheckoutPage() {
                         <span>
                           {paymentMethod === "cod"
                             ? `Confirm COD Order (${formatPrice(grandTotal)})`
-                            : `Pay ${formatPrice(grandTotal)} & Place Order`}
+                            : `Pay ${formatPrice(grandTotal)} with Razorpay`}
+
                         </span>
                       </>
                     )}
