@@ -3,9 +3,8 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { TrendingNowItem } from "@/types";
-import { formatPrice } from "@/lib/utils";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 
 interface TrendingNowSectionProps {
@@ -64,67 +63,27 @@ export function TrendingNowSection({ items }: TrendingNowSectionProps) {
                 key={`${item.id}-${idx}`}
                 className="w-[170px] sm:w-[210px] md:w-[240px] lg:w-[260px] shrink-0"
               >
-                {/* Clicking product card opens the product details page */}
+                {/* Plain rectangular card linking to product page */}
                 <Link
                   href={productHref}
-                  className="group/card block relative aspect-3/4 rounded-xl overflow-hidden bg-neutral-100 shadow-2xs hover:shadow-xl transition-all duration-300 cursor-pointer border border-neutral-200/60"
+                  className="group/card block relative aspect-3/4 rounded-none overflow-hidden bg-neutral-100 shadow-2xs hover:shadow-xl transition-all duration-300 cursor-pointer border border-neutral-200/60"
                 >
-                <Image
-                  src={item.image_url}
-                  alt={item.alt_text || item.title || "DNORA Trending Silhouette"}
-                  fill
-                  sizes="(max-width: 640px) 170px, (max-width: 1024px) 240px, 260px"
-                  className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-106"
-                />
-
-                {/* Always-visible Elegant Glassmorphism / Gradient Price Overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent pt-8 pb-3 px-3 sm:px-3.5 flex flex-col justify-end text-white">
-                  {item.title && (
-                    <p className="text-[11.5px] sm:text-xs font-semibold tracking-wide drop-shadow-sm truncate">
-                      {item.title}
-                    </p>
-                  )}
-
-                  {/* Price Display */}
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {item.price ? (
-                      <>
-                        <span className="text-xs sm:text-sm font-bold font-mono tracking-tight text-white drop-shadow-sm">
-                          {formatPrice(item.price)}
-                        </span>
-                        {item.compare_at_price && item.compare_at_price > item.price && (
-                          <span className="text-[10px] sm:text-[11px] text-white/60 line-through font-mono">
-                            {formatPrice(item.compare_at_price)}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-[10.5px] text-white/80 font-medium">
-                        View Details
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Trending Pill / Call to Action */}
-                  <div className="flex items-center justify-between pt-1 border-t border-white/15 mt-1.5 opacity-90 group-hover/card:opacity-100 transition-opacity">
-                    <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-[#F9A8D4] flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      <span>Trending</span>
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] text-white font-semibold flex items-center gap-0.5 group-hover/card:translate-x-0.5 transition-transform">
-                      <span>Shop</span>
-                      <ArrowRight className="w-2.5 h-2.5" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            </div>
+                  <Image
+                    src={item.image_url}
+                    alt={item.alt_text || item.title || "DNORA Trending Silhouette"}
+                    fill
+                    sizes="(max-width: 640px) 170px, (max-width: 1024px) 240px, 260px"
+                    className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-105"
+                  />
+                </Link>
+              </div>
             );
           })}
         </div>
       </div>
 
       {/* View All Button linking to dedicated /trending-now page */}
+
       <div className="mt-8 sm:mt-10 text-center">
         <Link
           href="/trending-now"
