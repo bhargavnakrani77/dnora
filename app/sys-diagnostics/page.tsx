@@ -670,6 +670,203 @@ export default function SystemDiagnosticsPage() {
         </div>
 
         {/* ============================================================== */}
+        {/* REMOTE REST API GATEWAY (SERVER DOWN FOR OTHER WEBSITE)         */}
+        {/* ============================================================== */}
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0">
+                <Globe className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    External Website Remote API (Server Down ON / OFF)
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+                    CORS ENABLED
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Control this website&apos;s Server Down / Maintenance mode directly from your other website or external script.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-slate-400">Live Status:</span>
+              <span
+                className={`px-2.5 py-1 rounded-full font-semibold ${
+                  isTerminated
+                    ? "bg-red-100 text-red-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {isTerminated ? "● SERVER DOWN (503)" : "● ONLINE"}
+              </span>
+            </div>
+          </div>
+
+          {/* Quick API Key & Base Endpoint */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5">
+              <span className="text-[11px] font-sans font-medium text-slate-500 uppercase tracking-wider block">
+                API Endpoint URL
+              </span>
+              <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                <span className="truncate text-slate-900">
+                  {typeof window !== "undefined" ? window.location.origin : "https://dnora.in"}/api/sys-diagnostics/toggle
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopy(
+                      `${typeof window !== "undefined" ? window.location.origin : "https://dnora.in"}/api/sys-diagnostics/toggle`,
+                      "api_endpoint"
+                    )
+                  }
+                  className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900 transition-colors shrink-0"
+                  title="Copy URL"
+                >
+                  {copiedKey === "api_endpoint" ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-1.5">
+              <span className="text-[11px] font-sans font-medium text-slate-500 uppercase tracking-wider block">
+                API Key (Header: x-api-key)
+              </span>
+              <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                <span className="truncate text-slate-900">
+                  dnora_sys_secret_2026
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy("dnora_sys_secret_2026", "api_key_copy")}
+                  className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900 transition-colors shrink-0"
+                  title="Copy Key"
+                >
+                  {copiedKey === "api_key_copy" ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Code Samples */}
+          <div className="space-y-3">
+            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider block">
+              Sample Code for Your Other Website
+            </span>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Turn ON Server Down (503) */}
+              <div className="bg-slate-900 text-slate-100 rounded-xl p-4 text-xs font-mono space-y-2">
+                <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2">
+                  <span className="font-sans font-semibold text-red-400">1. Turn Server Down ON (503)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snippet = `fetch("${typeof window !== "undefined" ? window.location.origin : "https://dnora.in"}/api/sys-diagnostics/toggle", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "dnora_sys_secret_2026"
+  },
+  body: JSON.stringify({ serverDown: true })
+});`;
+                      handleCopy(snippet, "code_turn_down");
+                    }}
+                    className="flex items-center gap-1 text-[11px] hover:text-white transition-colors"
+                  >
+                    {copiedKey === "code_turn_down" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy JS</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="text-[11px] text-slate-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`// JavaScript (Fetch from other website)
+await fetch("/api/sys-diagnostics/toggle", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "dnora_sys_secret_2026"
+  },
+  body: JSON.stringify({
+    serverDown: true,
+    message: "Maintenance in progress"
+  })
+});`}
+                </pre>
+              </div>
+
+              {/* Turn OFF Server Down (Online) */}
+              <div className="bg-slate-900 text-slate-100 rounded-xl p-4 text-xs font-mono space-y-2">
+                <div className="flex items-center justify-between text-slate-400 border-b border-slate-800 pb-2">
+                  <span className="font-sans font-semibold text-emerald-400">2. Turn Server Down OFF (Online)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snippet = `fetch("${typeof window !== "undefined" ? window.location.origin : "https://dnora.in"}/api/sys-diagnostics/toggle", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "dnora_sys_secret_2026"
+  },
+  body: JSON.stringify({ serverDown: false })
+});`;
+                      handleCopy(snippet, "code_turn_up");
+                    }}
+                    className="flex items-center gap-1 text-[11px] hover:text-white transition-colors"
+                  >
+                    {copiedKey === "code_turn_up" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy JS</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="text-[11px] text-slate-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`// JavaScript (Fetch from other website)
+await fetch("/api/sys-diagnostics/toggle", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "dnora_sys_secret_2026"
+  },
+  body: JSON.stringify({
+    serverDown: false
+  })
+});`}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================== */}
         {/* 3. ENVIRONMENT & CREDENTIALS CONTROL HUB                       */}
         {/* ============================================================== */}
         <section className="space-y-4">

