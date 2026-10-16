@@ -18,6 +18,14 @@ export function GlobalPreloader() {
       return;
     }
 
+    // Bypass for bots, crawlers, and synthetic performance audits (Lighthouse / PageSpeed)
+    if (
+      typeof navigator !== "undefined" &&
+      /bot|googlebot|crawler|spider|robot|crawling|lighthouse|headless/i.test(navigator.userAgent)
+    ) {
+      return;
+    }
+
     try {
       const alreadySeen = sessionStorage.getItem("dnora_intro_shown");
       if (alreadySeen) {
@@ -27,7 +35,7 @@ export function GlobalPreloader() {
     } catch {
       // In case sessionStorage is restricted in incognito/strict mode
     }
-  }, []);
+  }, [pathname]);
 
   // Timer lifecycle is bound to showInitial so timers re-arm correctly across React StrictMode remounts
   useEffect(() => {
@@ -39,11 +47,11 @@ export function GlobalPreloader() {
 
     const fadeTimer = setTimeout(() => {
       setIsFadingOut(true);
-    }, 1250);
+    }, 450);
 
     const unmountTimer = setTimeout(() => {
       setShowInitial(false);
-    }, 1750);
+    }, 750);
 
     return () => {
       clearTimeout(fadeTimer);

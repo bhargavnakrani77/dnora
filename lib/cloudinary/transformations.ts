@@ -159,8 +159,8 @@ export function getProductHeroUrl(url: string): string {
  */
 export function getCollectionCircleUrl(url: string): string {
   return getCloudinaryUrl(url, {
-    width: 400,
-    height: 400,
+    width: 200,
+    height: 200,
     crop: "fill",
     gravity: "center",
     quality: "auto:good",

@@ -5,6 +5,27 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { CampaignSlide } from "@/lib/data/store";
+import { getCloudinaryUrl } from "@/lib/cloudinary/transformations";
+
+const getPromoMobileUrl = (url?: string) => {
+  if (!url) return "";
+  return getCloudinaryUrl(url, {
+    width: 750,
+    crop: "limit",
+    quality: "auto:good",
+    format: "auto",
+  });
+};
+
+const getPromoDesktopUrl = (url?: string) => {
+  if (!url) return "";
+  return getCloudinaryUrl(url, {
+    width: 1600,
+    crop: "limit",
+    quality: "auto:good",
+    format: "auto",
+  });
+};
 
 interface PromoBannerProps {
   slides?: CampaignSlide[];
@@ -153,14 +174,20 @@ export function PromoBanner({
                   ) : (
                     <picture className="block relative w-full h-full">
                       {slide.mobile_media_url && (
-                        <source media="(max-width: 767px)" srcSet={slide.mobile_media_url} />
+                        <source
+                          media="(max-width: 767px)"
+                          srcSet={getPromoMobileUrl(slide.mobile_media_url)}
+                        />
                       )}
-                      <source media="(min-width: 768px)" srcSet={slide.media_url || slide.mobile_media_url} />
+                      <source
+                        media="(min-width: 768px)"
+                        srcSet={getPromoDesktopUrl(slide.media_url || slide.mobile_media_url || "")}
+                      />
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={slide.media_url || slide.mobile_media_url}
+                        src={getPromoMobileUrl(slide.mobile_media_url || slide.media_url || "")}
                         alt={slide.heading || "DNORA Campaign Banner"}
-                        loading={idx === 0 ? "eager" : "lazy"}
+                        loading="lazy"
                         decoding="async"
                         className="w-full h-full object-cover object-center select-none"
                       />
@@ -271,12 +298,16 @@ export function PromoBanner({
               type="button"
               onClick={() => setCurrentIndex(idx)}
               aria-label={`Go to slide ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
-                idx === currentIndex
-                  ? "w-8 bg-[#D4AF37] shadow-sm"
-                  : "w-2.5 bg-neutral-400/60 hover:bg-neutral-600"
-              }`}
-            />
+              className="relative py-2.5 px-1.5 flex items-center justify-center cursor-pointer focus:outline-hidden"
+            >
+              <span
+                className={`h-1.5 rounded-full transition-all duration-500 block ${
+                  idx === currentIndex
+                    ? "w-8 bg-[#D4AF37] shadow-sm"
+                    : "w-2.5 bg-neutral-400/60 hover:bg-neutral-600"
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

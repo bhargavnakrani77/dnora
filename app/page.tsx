@@ -8,6 +8,8 @@ import { DynamicHomeSection } from "@/components/DynamicHomeSection";
 import { TrendingNowSection } from "@/components/TrendingNowSection";
 import { HomepageSection, Product } from "@/types";
 import React from "react";
+import ReactDOM from "react-dom";
+import { getCloudinaryUrl, getCollectionCircleUrl } from "@/lib/cloudinary/transformations";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,18 @@ export default async function HomePage() {
     duration_seconds: b.duration_seconds || 5,
   }));
 
+  // Preload first mobile hero image in HTML head for instant LCP discovery
+  const firstSlide = slides[0];
+  if (firstSlide && firstSlide.media_type === "image") {
+    const mobilePreloadUrl = getCloudinaryUrl(
+      firstSlide.mobile_media_url || firstSlide.tablet_media_url || firstSlide.media_url,
+      { width: 750, crop: "limit", quality: "auto:good", format: "auto" }
+    );
+    if (mobilePreloadUrl) {
+      ReactDOM.preload(mobilePreloadUrl, { as: "image", fetchPriority: "high" });
+    }
+  }
+
   // Map Admin Categories directly to Our Collections round items (only active/unhidden collections)
   const collectionItems: CircularCollectionItem[] = categories
     .filter((cat) => cat.is_in_collections ?? true)
@@ -44,6 +58,7 @@ export default async function HomePage() {
       label: cat.name,
       href: `/category/${cat.slug}`,
       image:
+        getCollectionCircleUrl(cat.image_url || "") ||
         cat.image_url ||
         "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=300&q=80",
       alt: `${cat.name} Luxury Collection`,

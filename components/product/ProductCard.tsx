@@ -240,7 +240,7 @@ export function ProductCard({
                         e.stopPropagation();
                         setSelectedVariantIndex(isSelected ? null : idx);
                       }}
-                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 ${isSelected
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full transition-all duration-200 relative cursor-pointer shrink-0 before:content-[''] before:absolute before:-inset-1.5 before:cursor-pointer ${isSelected
                           ? "ring-2 ring-black ring-offset-1 scale-110 shadow-xs"
                           : "hover:scale-115 opacity-85 hover:opacity-100"
                         }`}

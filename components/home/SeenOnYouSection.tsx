@@ -84,16 +84,16 @@ export function SeenOnYouSection({ videos }: SeenOnYouSectionProps) {
                 onClick={() => setActiveVideo(vid)}
                 className="group relative flex-shrink-0 w-[180px] sm:w-[200px] md:w-[220px] lg:w-[240px] aspect-[9/16] rounded-xl overflow-hidden bg-neutral-900 shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer snap-start"
               >
-                {/* Background Video Preview / Poster with Auto-Play */}
+                {/* Background Video Preview / Poster with Auto-Play only when in view */}
                 {vid.video_url ? (
                   <video
-                    src={vid.video_url}
+                    src={isInView ? vid.video_url : undefined}
                     poster={vid.thumbnail_url}
-                    autoPlay
+                    autoPlay={isInView}
                     muted
                     loop
                     playsInline
-                    preload="metadata"
+                    preload="none"
                     className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                   />
                 ) : vid.thumbnail_url ? (

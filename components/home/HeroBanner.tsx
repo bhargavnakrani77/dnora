@@ -7,6 +7,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { HeroBanner as HeroBannerType } from "@/types";
+import { getCloudinaryUrl } from "@/lib/cloudinary/transformations";
 
 export interface HeroSlide {
   id: string;
@@ -20,6 +21,36 @@ export interface HeroSlide {
   link: string;
   duration_seconds?: number;
 }
+
+const getMobileBannerUrl = (url: string) => {
+  if (!url) return "";
+  return getCloudinaryUrl(url, {
+    width: 750,
+    crop: "limit",
+    quality: "auto:good",
+    format: "auto",
+  });
+};
+
+const getTabletBannerUrl = (url: string) => {
+  if (!url) return "";
+  return getCloudinaryUrl(url, {
+    width: 1200,
+    crop: "limit",
+    quality: "auto:good",
+    format: "auto",
+  });
+};
+
+const getDesktopBannerUrl = (url: string) => {
+  if (!url) return "";
+  return getCloudinaryUrl(url, {
+    width: 1920,
+    crop: "limit",
+    quality: "auto:good",
+    format: "auto",
+  });
+};
 
 // Luxury hero slides using Cloudinary dnora/herobanner assets
 const HERO_SLIDES: HeroSlide[] = [
@@ -73,8 +104,9 @@ export function HeroBanner({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Dynamically load published hero banners from the database
+  // Dynamically load published hero banners from the database only if not already provided by SSR
   useEffect(() => {
+    if (initialSlides && initialSlides.length > 0) return;
     let isMounted = true;
     async function fetchBanners() {
       try {
@@ -109,7 +141,7 @@ export function HeroBanner({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialSlides]);
 
   const currentSlide = liveSlides[currentIndex % liveSlides.length] || liveSlides[0];
 
@@ -227,24 +259,25 @@ export function HeroBanner({
                     {/* Desktop / Large Screen: min-width 1024px */}
                     <source
                       media="(min-width: 1024px)"
-                      srcSet={slide.media_url}
+                      srcSet={getDesktopBannerUrl(slide.media_url)}
                     />
                     {/* Tablet Screen: min-width 640px to 1023px */}
                     <source
                       media="(min-width: 640px)"
-                      srcSet={slide.tablet_media_url || slide.media_url}
+                      srcSet={getTabletBannerUrl(slide.tablet_media_url || slide.media_url)}
                     />
                     {/* Mobile Screen: max-width 639px */}
                     <source
                       media="(max-width: 639px)"
-                      srcSet={slide.mobile_media_url || slide.tablet_media_url || slide.media_url}
+                      srcSet={getMobileBannerUrl(slide.mobile_media_url || slide.tablet_media_url || slide.media_url)}
                     />
                     {/* Fallback image */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={slide.media_url}
+                      src={getMobileBannerUrl(slide.mobile_media_url || slide.media_url)}
                       alt={slide.heading || "DNORA Luxury Collection"}
                       loading={index === 0 ? "eager" : "lazy"}
+                      fetchPriority={index === 0 ? "high" : "auto"}
                       decoding="async"
                       className="w-full h-full object-cover select-none pointer-events-none"
                     />
@@ -313,13 +346,17 @@ export function HeroBanner({
                   setCurrentIndex(index);
                 }}
                 aria-label={`Go to slide ${index + 1}`}
-                className="h-1 rounded-full transition-all duration-300 overflow-hidden cursor-pointer focus:outline-hidden"
-                style={{
-                  width: isActive ? "32px" : "10px",
-                  backgroundColor: isActive ? "#FFFFFF" : "rgba(255, 255, 255, 0.4)",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                }}
-              />
+                className="relative py-2.5 px-1 flex items-center justify-center cursor-pointer focus:outline-hidden"
+              >
+                <span
+                  className="h-1 rounded-full transition-all duration-300 block overflow-hidden"
+                  style={{
+                    width: isActive ? "32px" : "10px",
+                    backgroundColor: isActive ? "#FFFFFF" : "rgba(255, 255, 255, 0.4)",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </button>
             );
           })}
         </div>

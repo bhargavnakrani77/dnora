@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { TrendingNowItem } from "@/types";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { getCloudinaryUrl } from "@/lib/cloudinary/transformations";
 
 interface TrendingNowSectionProps {
   items: TrendingNowItem[];
@@ -69,10 +70,20 @@ export function TrendingNowSection({ items }: TrendingNowSectionProps) {
                   className="group/card block relative aspect-3/4 rounded-none overflow-hidden bg-neutral-100 shadow-2xs hover:shadow-xl transition-all duration-300 cursor-pointer border border-neutral-200/60"
                 >
                   <Image
-                    src={item.image_url}
+                    src={
+                      getCloudinaryUrl(item.image_url, {
+                        width: 480,
+                        aspectRatio: "3:4",
+                        crop: "pad",
+                        background: "auto",
+                        quality: "auto:good",
+                        format: "auto",
+                      }) || item.image_url
+                    }
                     alt={item.alt_text || item.title || "DNORA Trending Silhouette"}
                     fill
                     sizes="(max-width: 640px) 170px, (max-width: 1024px) 240px, 260px"
+                    loading="lazy"
                     className="object-cover transition-transform duration-500 ease-out group-hover/card:scale-105"
                   />
                 </Link>
